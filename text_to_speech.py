@@ -19,11 +19,11 @@ if __name__ == "__main__":
 
 
     if len(args.text) == 0:
-        args.text = "Emotion aware text to speech is really great! Thank you for trying it out."
+        text = "Emotion aware text to speech is really great! Thank you for trying it out."
     else:
-        args.text = " ".join(args.text)
+        text = " ".join(args.text)
 
     output_path = os.path.join("tmp", " ".join(text.split()))
     text_to_speech(text, output_path)
     console.log("Writing to", output_path)
-    os.system.("afplay '{}' || ffplay '{}' || play '{}'".format(output_path, output_path, output_path))
+    os.system("afplay '{}' || ffplay '{}' || play '{}'".format(output_path, output_path, output_path))

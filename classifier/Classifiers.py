@@ -16,5 +16,5 @@ class UnigramClassifier(Classifier):
 if __name__ == "__main__":
     # run training code
     classifier = UnigramClassifier()
-    data = data_source.DataSource()
+    data = DataSource()
     classifier.train(data)

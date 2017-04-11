@@ -31,28 +31,28 @@ timers = {}
 
 def fmt(iterable):
     return " ".join(str(i) for i in iterable)
-def h1(self, *args):
+def h1(*args):
     print(colors.BRIGHT, fmt(args), colors.END)
-def wait(self, *args):
+def wait(*args):
     input(colors.BLUE + fmt(args) + colors.END)
-def log(self, *args):
+def log(*args):
     print(colors.YELLOW, fmt(args), colors.END)
-def info(self, *args):
+def info(*args):
     print(colors.DIM + "\t", fmt(args), colors.END)
-def debug(self, *args):
+def debug(*args):
     print(colors.DK_BLUE + "\t", fmt(args), colors.END)
-def warn(self, *args):
+def warn(*args):
     print(colors.DK_CYAN + "WARN:\t" + colors.END + colors.CYAN, fmt(args), colors.END)
-def error(self, *args):
+def error(*args):
     print(colors.DK_RED + colors.BLINK + "ERROR:\t" + colors.END + colors.RED, fmt(args), colors.END)
-def time(self, key):
+def time(key):
     timers[key] = time.time()
-def time_end(self, key):
+def time_end(key):
     if key in timers:
         t = time.time() - timers[key]
         print("\t" + str(t) + colors.DIM  + " s \t" + key + colors.END)
         del timers[key]
-def notify(self, *args):
+def notify(*args):
     # Play bell
     print('\a')
     # Attempt to send a notification (will fail, but not crash, if not on macOS)
