@@ -1,1 +1,1 @@
-from Classifiers import UnigramClassifier as BestClassifier
+from classifiers import UnigramClassifier as BestClassifier
