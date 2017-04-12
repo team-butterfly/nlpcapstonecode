@@ -2,7 +2,7 @@
 import argparse
 import os
 from utility import console
-from classifier import BestClassifier
+from classifiers import BestClassifier
 from tts import TTS
 
 def text_to_speech(text, output_path):

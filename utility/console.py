@@ -4,7 +4,7 @@ Ported nigh-verbatim from a similar file I use for node
 """
 import time, os
 
-class colors:
+class colors():
     END = "\033[0m"
     BRIGHT = "\033[1m"
     DIM = "\033[2m"

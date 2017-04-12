@@ -1,2 +1,2 @@
-import console
-import emotions
+from . import console
+from .emotion import Emotion
