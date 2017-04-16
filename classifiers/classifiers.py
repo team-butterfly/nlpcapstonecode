@@ -2,7 +2,6 @@ from itertools import chain
 
 from utility import console, Emotion
 from utility.strings import StringStore
-from data_source import DataSource
 
 import numpy as np
 import tensorflow as tf
