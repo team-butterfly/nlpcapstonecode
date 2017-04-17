@@ -33,7 +33,7 @@ class UnigramClassifier(Classifier):
 
     def _encode_sentences(self, sentences):
         """Convert a sequence of sentences into a matrix of unigram counts."""
-        return np.array([self._stringstore.count_vector(sent.split()) for sent in sentences])
+        return np.array([self._stringstore.count_vector(sent) for sent in sentences])
 
     def train(self, inputs, true_labels, num_labels):
         """
@@ -44,8 +44,8 @@ class UnigramClassifier(Classifier):
         # First, set up the vocabulary and such
         def word_iter():
             for sent in inputs:
-                for word in sent.split():
-                    yield word
+                for token in sent:
+                    yield token
 
         self._stringstore = StringStore(word_iter(), unk_threshold=2)
         self._vocab_size = len(self._stringstore)
@@ -108,8 +108,8 @@ class UnigramClassifier(Classifier):
                 avg_loss_1 += cur_loss
                 if t > 0 and t % avg_steps == 0:
                     avg_loss_1 /= avg_steps
+                    converged = np.isclose(avg_loss_0, avg_loss_1, rtol=1e-04, atol=1e-05)
                     avg_loss_0, avg_loss_1 = avg_loss_1, 0
-                    converged = np.isclose(avg_loss_0, avg_loss_1, rtol=1e-02, atol=1e-03)
 
             # Temporary kludge until I figure out the right way to do this...
             self._w_saved = self._w.eval()
@@ -119,13 +119,16 @@ class UnigramClassifier(Classifier):
             console.log("UnigramClassifier.train: weights\n", self._w_saved)
             console.log("UnigramClassifier.train: biases\n", self._b_saved)
 
-    def predict(self, text):
+    def predict(self, sentences):
+        console.log("UnigramClassifier.predict: text\n",
+                self._encode_sentences(sentences))
         with tf.Session(graph=self._graph) as sess:
             sess.run(self._init_op)
             feed = {
-                self._inputs: self._encode_sentences(text),
+                self._inputs: self._encode_sentences(sentences),
                 self._w: self._w_saved,
                 self._b: self._b_saved
             }
-            predictions = sess.run(self._predictions, feed_dict=feed)
+            predictions, probs = sess.run([self._predictions, self._softmax], feed_dict=feed)
+            console.log("UnigramClassifier.predict: softmax\n", probs)
             return predictions
