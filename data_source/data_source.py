@@ -1,21 +1,24 @@
 
+import nltk
+
+
 class FakeDataSource(object):
 
-    def get_inputs(self):
-        return [
+    def __init__(self):
+        self._inputs = [
             "I love eggs for breakfast",
             "Flies love fruit",
             "I love bacon",
             "I love coffee",
             "I love chocolate",
-            "I love , love chocolate and coffee"
+            "I love, love chocolate and coffee"
             "I like spam sandwiches",
             "I like peas and onions",
             "I like water",
-            "I like ice cream , especially chocolate",
+            "I like ice cream, especially chocolate",
             "I hate strawberry milk",
             "I hate swiss cheese",
-            "I hate vegetables , especially asparagus",
+            "I hate vegetables, especially asparagus",
             "I hate fruit",
             "I am Python",
             "I have no brain",
@@ -24,6 +27,9 @@ class FakeDataSource(object):
             "I drink water all day",
             "I drink coffee in the morning"
         ]
+
+    def get_inputs(self):
+        return [nltk.word_tokenize(s) for s in self._inputs]
 
     def num_labels(self):
         return 4
@@ -34,7 +40,7 @@ class FakeDataSource(object):
             2 if sent.find("like") != -1 else
             1 if sent.find("hate") != -1 else
             0
-            for sent in self.get_inputs()
+            for sent in self._inputs
         ]
 
     def decode_labels(self, labels, meanings=("neutral", "hatred", "enjoyment", "endearment")):

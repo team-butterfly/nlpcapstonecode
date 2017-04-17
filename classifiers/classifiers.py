@@ -33,7 +33,7 @@ class UnigramClassifier(Classifier):
 
     def _encode_sentences(self, sentences):
         """Convert a sequence of sentences into a matrix of unigram counts."""
-        return np.array([self._stringstore.count_vector(sent.split()) for sent in sentences])
+        return np.array([self._stringstore.count_vector(sent) for sent in sentences])
 
     def train(self, inputs, true_labels, num_labels):
         """
@@ -44,8 +44,8 @@ class UnigramClassifier(Classifier):
         # First, set up the vocabulary and such
         def word_iter():
             for sent in inputs:
-                for word in sent.split():
-                    yield word
+                for token in sent:
+                    yield token
 
         self._stringstore = StringStore(word_iter(), unk_threshold=2)
         self._vocab_size = len(self._stringstore)
