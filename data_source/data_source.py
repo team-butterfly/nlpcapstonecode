@@ -1,12 +1,16 @@
 
+import html
 import nltk
+import random
+
+from utility import Emotion
 
 
 class FakeDataSource(object):
 
     def __init__(self):
-        self._num_labels = 4 
-        self._train_inputs = [nltk.word_tokenize(raw_text) for raw_text in ( 
+        self._num_labels = 4
+        self._train_inputs = [nltk.word_tokenize(raw_text) for raw_text in (
             "I love eggs for breakfast",
             "Flies love fruit",
             "I love bacon",
@@ -72,3 +76,58 @@ class FakeDataSource(object):
 
     def decode_labels(self, labels, meanings=("neutral", "hatred", "enjoyment", "endearment")):
         return [meanings[i] for i in labels]
+
+
+class TweetsDataSource(object):
+
+    def _parse_tok(line):
+        # Un-escape unicode characters
+        line = bytes(line, 'ascii').decode('unicode_escape')
+
+        # Replace newline characters with two spaces
+        line = line.replace('\n', '  ')
+
+        # Un-escape HTML entities
+        line = html.unescape(line)
+
+        return nltk.word_tokenize(line)
+
+    def __init__(self, filename):
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+
+        self._inputs = [TweetsDataSource._parse_tok(lines[i + 3].rstrip()) for i in range(0, len(lines), 5)]
+        emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
+        self._num_inputs = len(self._inputs)
+
+        self._index_emotion = list(set(emotions))
+        self._emotion_index = {l: i for i, l in enumerate(self._index_emotion)}
+        self._num_labels = len(self._index_emotion)
+        self._labels = [self._emotion_index[emotion] for emotion in emotions]
+
+        pct_test = 0.10
+        num_test = int(round(len(self._inputs) * pct_test))
+        self._test_indexes = sorted(random.sample(range(self._num_inputs), num_test))
+
+    @property
+    def num_labels(self):
+        return self._num_labels
+
+    @property
+    def train_inputs(self):
+        return [s for i, s in enumerate(self._inputs) if i not in self._test_indexes]
+
+    @property
+    def test_inputs(self):
+        return [self._inputs[i] for i in self._test_indexes]
+
+    @property
+    def train_labels(self):
+        return [s for i, s in enumerate(self._labels) if i not in self._test_indexes]
+
+    @property
+    def test_labels(self):
+        return [self._labels[i] for i in self._test_indexes]
+
+    def decode_labels(self, labels):
+        return [self._index_emotion[i].name for i in labels]
