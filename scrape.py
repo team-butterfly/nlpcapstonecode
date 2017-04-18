@@ -27,7 +27,7 @@ filename = 'outputfilename.txt'
 
 # Add more emotion entries here
 search_emojis = {
-    Emotion.JOY: [':smile:', ':smiley:', ':grin:', ':grinning:', ':slightly_smiling_face:'],
+    Emotion.JOY: [':smile:', ':smiley:', ':grin:', ':grinning:'],
     # Emotion.ANGER: [':rage:', ':anger_symbol:', ':angry_face:'],
 }
 
