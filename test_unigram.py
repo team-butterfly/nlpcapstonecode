@@ -36,7 +36,11 @@ console.h1("\tMfc:\t{}".format(train_mfc))
 console.h1("Testing data:")
 console.h1("\tCount:\t{}".format(n_test))
 console.h1("\tAcc:\t{}".format(test_acc))
-console.h1("\tMFC:\t{}".format(test_mfc))
+console.h1("\tMfc:\t{}".format(test_mfc))
 
 if test_mfc >= test_acc:
     console.warn("Your model isn't better than the MFC!")
+
+for tweet_tokens, label in zip(data_source.test_inputs, data_source.decode_labels(test_predictions)):
+    console.log(" ".join(tweet_tokens))
+    console.log(label)
