@@ -97,7 +97,7 @@ class TweetsDataSource(object):
 
         return TweetsDataSource._tokenizer.tokenize(line)
 
-    def __init__(self, filename, pct_test=0.10):
+    def __init__(self, filename, pct_test=0.10, random_seed=None):
         with open(filename, 'r') as f:
             lines = f.readlines()
 
@@ -118,6 +118,8 @@ class TweetsDataSource(object):
         self._labels = [self._emotion_index[emotion] for emotion in emotions]
 
         num_test = int(round(len(self._inputs) * pct_test))
+
+        random.seed(random_seed)
         self._test_indexes = sorted(random.sample(range(num_inputs), num_test))
 
     @property
