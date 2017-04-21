@@ -1,8 +1,10 @@
 
 import html
+import json
 import nltk
 import random
 
+from nltk.tokenize import TweetTokenizer
 from utility import Emotion
 
 
@@ -80,9 +82,12 @@ class FakeDataSource(object):
 
 class TweetsDataSource(object):
 
-    def _parse_tok(line):
-        # Un-escape unicode characters
-        line = bytes(line, 'ascii').decode('unicode_escape')
+    _tokenizer = TweetTokenizer()
+
+    def _parse_tok(line, escape_unicode=False):
+        if escape_unicode:
+            # Un-escape unicode characters
+            line = bytes(line, 'ascii').decode('unicode_escape')
 
         # Replace newline characters with two spaces
         line = line.replace('\n', '  ')
@@ -90,24 +95,30 @@ class TweetsDataSource(object):
         # Un-escape HTML entities
         line = html.unescape(line)
 
-        return nltk.word_tokenize(line)
+        return TweetsDataSource._tokenizer.tokenize(line)
 
-    def __init__(self, filename):
+    def __init__(self, filename, pct_test=0.10):
         with open(filename, 'r') as f:
             lines = f.readlines()
 
-        self._inputs = [TweetsDataSource._parse_tok(lines[i + 3].rstrip()) for i in range(0, len(lines), 5)]
-        emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
-        self._num_inputs = len(self._inputs)
+        if lines[0].rstrip() == 'v.4/21':
+            lines = lines[1:]
+            tweets = [json.loads(line.rstrip()) for line in lines]
+            self._inputs = [TweetsDataSource._parse_tok(tweet['text']) for tweet in tweets]
+            emotions = [Emotion[tweet['tag']] for tweet in tweets]
+        else:
+            self._inputs = [TweetsDataSource._parse_tok(lines[i + 3].rstrip(), True) for i in range(0, len(lines), 5)]
+            emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
+
+        num_inputs = len(self._inputs)
 
         self._index_emotion = list(set(emotions))
         self._emotion_index = {l: i for i, l in enumerate(self._index_emotion)}
         self._num_labels = len(self._index_emotion)
         self._labels = [self._emotion_index[emotion] for emotion in emotions]
 
-        pct_test = 0.10
         num_test = int(round(len(self._inputs) * pct_test))
-        self._test_indexes = sorted(random.sample(range(self._num_inputs), num_test))
+        self._test_indexes = sorted(random.sample(range(num_inputs), num_test))
 
     @property
     def num_labels(self):
