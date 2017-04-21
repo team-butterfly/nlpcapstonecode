@@ -15,7 +15,7 @@ class TTS():
             (0.4,  0.05),
             (0.6,  0.1),
             (0.7,  0.1),
-            (0.9,  0.3),
+            (0.9,  0.2),
             (1.0,  0.3)
         ],
         Emotion.ANGER : [
@@ -23,8 +23,8 @@ class TTS():
             (0.4, -0.1),
             (0.6, -0.1),
             (0.7,  0.0),
-            (0.8, -0.2),
-            (1.0, -0.3)
+            (0.8, -0.15),
+            (1.0, -0.2)
         ]
     }
     def __init__(self):
@@ -96,9 +96,10 @@ class TTS():
 
     def speak_raw(self, text, output_path):
         assert output_path.endswith(".aif") or output_path.endswith(".aiff")
-        os.system("say '" + text + "' -o '" + output_path + "'")
+        os.system("say '" + text.replace("'", "\'") + "' -o '" + output_path + "'")
 
     def speak(self, text, emotion, output_path):
         self.speak_raw(text, output_path)
         new_file_path = self.apply_pitch_envelope_to_file(output_path, self.envelopes[emotion])
         console.log("Spoke output to", new_file_path)
+        return new_file_path

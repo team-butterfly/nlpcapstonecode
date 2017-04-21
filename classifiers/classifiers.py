@@ -28,7 +28,7 @@ class UnigramClassifier(Classifier):
     """
     UnigramClassifier classifies sentences by a simple bag-of-words model.
     """
-    def __init__(self, num_labels, unk_threshold):
+    def __init__(self, num_labels=2, unk_threshold=5):
         self._num_labels = num_labels
         self._unk_threshold = unk_threshold
 
@@ -68,13 +68,13 @@ class UnigramClassifier(Classifier):
             # Model inputs
             self._inputs = tf.placeholder(tf.float32, [None, self._vocab_size], name="word_counts")
             self._true_labels = tf.placeholder(tf.int32, [None], name="labels")
-            
+
             # Model parameters
             self._w = tf.Variable(tf.truncated_normal([self._vocab_size, self._num_labels]),
                                   dtype=tf.float32,
                                   name="weights")
             self._b = tf.Variable(tf.zeros([self._num_labels]),
-                                  dtype=tf.float32, 
+                                  dtype=tf.float32,
                                   name="bias")
 
             self._logits = tf.nn.xw_plus_b(self._inputs, self._w, self._b)
@@ -100,7 +100,7 @@ class UnigramClassifier(Classifier):
 
             # We've converged when avg_loss_0 ~= avg_loss_1
             converged = False
-            
+
             while not converged:
                 x_batch, y_batch = self._encode_sentences(inputs), true_labels
                 train_feed = {
@@ -109,7 +109,7 @@ class UnigramClassifier(Classifier):
                 }
                 [_, cur_loss] = sess.run([self._train_op, self._loss], train_feed)
                 t += 1
-                
+
                 if t >= max_epochs:
                     break
 
