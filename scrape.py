@@ -1,10 +1,9 @@
-#!/usr/bin/env python2
-
-# TODO: Port to Python 3 and fix Unicode handling
+#!/usr/bin/env python3
 
 import codecs
 import emoji
 import itertools
+import json
 import tweepy
 import re
 
@@ -23,16 +22,20 @@ api = tweepy.API(auth)
 
 # ----- PARAMETERS -----
 
-filename = 'outputfilename.txt'
+filename = 'tweets.v2.txt'
 
 # Add more emotion entries here
 search_emojis = {
-    Emotion.JOY: [':smile:', ':smiley:', ':grin:', ':grinning:'],
-    # Emotion.ANGER: [':rage:', ':anger_symbol:', ':angry_face:'],
+    Emotion.NEUTRAL: [':neutral_face:', ':expressionless:', ':no_mouth:'],
+    Emotion.JOY: [':grinning:', ':grin:', ':joy:', ':rolling_on_the_floor_laughing:', ':smiley:', ':smile:', ':blush:'],
+    Emotion.SADNESS: [':frowning_face:', ':slightly_frowning_face:', ':disappointed:', ':crying_face:', ':loudly_crying_face:'],
+    Emotion.ANGER: [':rage:', ':anger_symbol:', ':angry_face:'],
+    # Emotion.DISGUST: [],
+    Emotion.SURPRISE: [':open_mouth:', ':hushed:', ':astonished:'],
 }
 
-# Number of tweets to scrape for each emotion
-num_tweets = 500
+# Maximum number of tweets to scrape for each emotion
+num_tweets = 1000
 
 # Minimum length of tweets to consider
 min_length = 50
@@ -44,15 +47,15 @@ search_unicodes = {k: [emoji.EMOJI_ALIAS_UNICODE[s] for s in v] for k, v in sear
 total_tweets = len(search_emojis) * num_tweets
 
 # See http://stackoverflow.com/a/41422178
-emoji_pattern = re.compile(
-    u"(\ud83d[\ude00-\ude4f])|"  # emoticons
-    u"(\ud83c[\udf00-\uffff])|"  # symbols & pictographs (1 of 2)
-    u"(\ud83d[\u0000-\uddff])|"  # symbols & pictographs (2 of 2)
-    u"(\ud83d[\ude80-\udeff])|"  # transport & map symbols
-    u"(\ud83c[\udde0-\uddff])"  # flags (iOS)
-    , flags=re.UNICODE)
+emoji_pattern = re.compile("["
+        u"\U0001F600-\U0001F64F"  # emoticons
+        u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+        u"\U0001F680-\U0001F6FF"  # transport & map symbols
+        u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+                           "]", flags=re.UNICODE)
 
-file = codecs.open(filename, encoding='utf-8', mode='w')
+file = codecs.open(filename, mode='w')#, encoding='utf-8')
+file.write("v.4/21\n")
 
 def strip_emojis(text):
     return emoji_pattern.sub(r'', text)
@@ -80,33 +83,35 @@ def tag(status):
     return None
 
 def write_tweet(tag, status):
-    file.write(status.id_str)
+    d = {
+        'id': status.id_str,
+        'time': str(status.created_at),
+        'username': status.user.screen_name,
+        'tag': tag.name,
+        'origtext': status.text,
+        'text': strip_emojis(status.text).rstrip(),
+    }
+    file.write(json.dumps(d))
     file.write('\n')
-    file.write(status.user.screen_name.encode('unicode_escape'))
-    file.write('\n')
-    file.write(tag.name)
-    file.write('\n')
-    file.write(strip_emojis(status.text).rstrip().encode('unicode_escape'))
-    file.write('\n')
-    file.write('\n')
+    file.flush()
 
 class Listener(tweepy.StreamListener):
     def __init__(self):
         super(Listener, self).__init__()
         self.counts = {}
     def on_error(self, status_code):
-        print "Error", status_code
+        print("Error", status_code)
         # Disconnect on error
         return False
     def on_status(self, status):
         t = tag(status)
         if t is not None:
-            if not t in self.counts:
-                self.counts[t] = 0
-            if self.counts[t] < num_tweets:
+            if not t.name in self.counts:
+                self.counts[t.name] = 0
+            if self.counts[t.name] < num_tweets:
                 write_tweet(t, status)
-                self.counts[t] += 1
-                print t, self.counts[t]
+                self.counts[t.name] += 1
+                print(self.counts)
                 if sum(self.counts.values()) == total_tweets:
                     # Disconnect stream after reaching desired count
                     return False
