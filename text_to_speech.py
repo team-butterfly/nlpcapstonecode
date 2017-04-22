@@ -10,9 +10,9 @@ import numpy as np
 def text_to_speech(classifier, data_source, text):
     tts = TTS()
     output_path = "/tmp/" + tts.as_file_path(text) + ".aif"
-    emotion = classifier.predict([text])[0]
-
-    return tts.speak(text, Emotion[data_source.decode_labels([emotion])[0]], output_path)
+    emotion = Emotion[data_source.decode_labels([classifier.predict([text])[0]])[0]]
+    console.log(emotion)
+    return tts.speak(text, emotion, output_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Emotion-aware text-to-speech")
@@ -26,11 +26,11 @@ if __name__ == "__main__":
     else:
         text = " ".join(args.text)
 
-    data_source = TweetsDataSource("data/tweets.v2.txt")
-    classifier = UnigramClassifier(data_source.num_labels, 2)
+    data_source = TweetsDataSource("data/tweets.v2.txt", random_seed=5)
+    classifier = UnigramClassifier(data_source.num_labels, unk_threshold=9)
 
     console.time("training")
-    classifier.train(data_source.train_inputs, data_source.train_labels, 100)
+    classifier.train(data_source.train_inputs, data_source.train_labels, max_epochs=10000)
     console.time_end("training")
 
     console.time("predicting")
@@ -40,13 +40,13 @@ if __name__ == "__main__":
 
     n_train = len(data_source.train_inputs)
     train_frequencies = np.bincount(data_source.train_labels) / n_train
-    train_mfc = 1-train_frequencies.max()
-    train_acc = np.sum(np.equal(train_predictions, data_source.train_labels)) / n_train
+    train_mfc = train_frequencies.max()
+    train_acc = np.equal(train_predictions, data_source.train_labels).mean()
 
     n_test = len(data_source.test_inputs)
     test_frequencies = np.bincount(data_source.test_labels) / n_test
-    test_mfc = 1-test_frequencies.max()
-    test_acc = np.sum(np.equal(test_predictions, data_source.test_labels)) / n_test
+    test_mfc = test_frequencies.max()
+    test_acc = np.equal(test_predictions, data_source.test_labels).mean()
 
     console.h1("Training data:")
     console.h1("\tCount:\t{}".format(n_train))
