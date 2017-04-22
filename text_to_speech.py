@@ -7,9 +7,9 @@ from tts import TTS
 from data_source import FakeDataSource, TweetsDataSource
 import numpy as np
 
-def text_to_speech(classifier, data_source, text, output_path):
-
+def text_to_speech(classifier, data_source, text):
     tts = TTS()
+    output_path = "/tmp/" + tts.as_file_path(text) + ".aif"
     emotion = classifier.predict([text])[0]
 
     return tts.speak(text, Emotion[data_source.decode_labels([emotion])[0]], output_path)
@@ -26,11 +26,11 @@ if __name__ == "__main__":
     else:
         text = " ".join(args.text)
 
-    data_source = TweetsDataSource("data/tweets-small.txt")
+    data_source = TweetsDataSource("data/tweets.v2.txt")
     classifier = UnigramClassifier(data_source.num_labels, 2)
 
     console.time("training")
-    classifier.train(data_source.train_inputs, data_source.train_labels)
+    classifier.train(data_source.train_inputs, data_source.train_labels, 100)
     console.time_end("training")
 
     console.time("predicting")
@@ -58,7 +58,8 @@ if __name__ == "__main__":
     console.h1("\tAcc:\t{}".format(test_acc))
     console.h1("\tMfc:\t{}".format(test_mfc))
 
-    output_path = os.path.join("/tmp", "_".join(text.split()) + ".aif")
-    output_path = text_to_speech(classifier, data_source, text, output_path)
-    console.log("Writing to", output_path)
-    os.system("afplay '{}' || ffplay '{}' || play '{}'".format(output_path, output_path, output_path))
+    while not text.startswith("!"):
+        text = input("Enter your text (! to quit): ")
+        output_path = text_to_speech(classifier, data_source, text)
+        # console.log("Writing to", output_path)
+        os.system("afplay '{}' || ffplay '{}' || play '{}'".format(output_path, output_path, output_path))
