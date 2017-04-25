@@ -1,22 +1,15 @@
 """
-Tune parameters of UnigramClassifier
+Try running the models
 """
 from classifiers import UnigramClassifier, LstmClassifier
-from data_source import FakeDataSource, TweetsDataSource
+from data_source import TweetsDataSource
 from utility import console
 import numpy as np
 
 tweets_data_src = TweetsDataSource("data/tweets.v2.txt", random_seed=5)
 
-def assess_classifier(classifier, data_src, max_epochs):
-    """Run the classifier, print metrics, and return accuracy on dev set"""
-    console.time("training")
-    classifier.train(
-        data_src.train_inputs,
-        data_src.train_labels,
-        max_epochs=max_epochs)
-    console.time_end("training")
-
+def assess_classifier(classifier, data_src):
+    """Use the classifier to predict, print metrics, and return accuracy on dev set"""
     console.time("predicting")
     train_predictions = classifier.predict(data_src.train_inputs)
     test_predictions = classifier.predict(data_src.test_inputs)
@@ -49,16 +42,23 @@ def assess_classifier(classifier, data_src, max_epochs):
 
     return test_acc
 
-def find_good_unk_threshold():
-    """Best unk_thresholds were 7, 4, 3?"""
+def find_good_unk_threshold(data_src, lo, hi):
+    """Best unk_threshold is like 9 I guess"""
     accs = {}
-    for unk in range(1, 50):
+    for unk in range(lo, hi+1):
         console.h1("Trying unk_threshold={}".format(unk))
         clsf = UnigramClassifier(data_src.num_labels, unk_threshold=unk)
-        test_acc = assess_classifier(clsf, tweets_data_src, 10000)
+        clsf.train(
+            data_src.train_inputs,
+            data_src.train_labels,
+            max_epochs=10000)
+        test_acc = assess_classifier(clsf, data_src)
         accs[unk] = test_acc
+
     sorted_accs = sorted(accs.items(), key=lambda it: it[1], reverse=True) # Sort the dict by ascending values
-    print(sorted_accs)
+    best_unk, best_acc = sorted_accs[0]
+    console.log(sorted_accs)
+    console.log("The best unk_threshold was {} with accuracy {}".format(best_unk, best_acc))
 
 
 def run_lstm():
@@ -84,8 +84,7 @@ def run_lstm():
         def test_labels(self):
             return self._data_src.test_labels
 
-    clsf = LstmClassifier(5)
-    assess_classifier(clsf, RawInputsWrapper(tweets_data_src), 10)
+    assess_classifier(LstmClassifier(), RawInputsWrapper(tweets_data_src))
 
 if __name__ == "__main__":
-    run_lstm()
+    find_good_unk_threshold(tweets_data_src, 2, 10)
