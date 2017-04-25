@@ -24,18 +24,34 @@ class TweetsDataSource(object):
 
         return text
 
-    def __init__(self, filename, pct_test=0.10, random_seed=None):
-        with open(filename, 'r') as f:
-            lines = f.readlines()
+    def __init__(self, *args, **kwargs):
+        pct_test = 0.10
+        if 'pct_test' in kwargs:
+            pct_test = kwargs['pct_test']
 
-        if lines[0].rstrip() == 'v.4/21':
-            lines = lines[1:]
-            tweets = [json.loads(line.rstrip()) for line in lines]
-            self._raw_inputs = [TweetsDataSource._clean_text(tweet['text'].strip()) for tweet in tweets]
-            emotions = [Emotion[tweet['tag']] for tweet in tweets]
-        else:
-            self._raw_inputs = [TweetsDataSource._clean_text(lines[i + 3].rstrip(), True) for i in range(0, len(lines), 5)]
-            emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
+        random_seed = None
+        if 'random_seed' in kwargs:
+            random_seed = kwargs['random_seed']
+
+        self._raw_inputs = []
+        emotions = []
+        for filename in args:
+            with open(filename, 'r') as f:
+                lines = f.readlines()
+
+            new_inputs = []
+            new_emotions = []
+            if lines[0].rstrip() == 'v.4/21':
+                lines = lines[1:]
+                tweets = [json.loads(line.rstrip()) for line in lines]
+                new_inputs = [TweetsDataSource._clean_text(tweet['text'].strip()) for tweet in tweets]
+                new_emotions = [Emotion[tweet['tag']] for tweet in tweets]
+            else:
+                new_inputs = [TweetsDataSource._clean_text(lines[i + 3].rstrip(), True) for i in range(0, len(lines), 5)]
+                new_emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
+
+            self._raw_inputs += new_inputs
+            emotions += new_emotions
 
         self._inputs = [TweetsDataSource._tokenizer.tokenize(text) for text in self._raw_inputs]
         num_inputs = len(self._inputs)
