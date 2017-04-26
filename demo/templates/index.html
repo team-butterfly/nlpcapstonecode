@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Emotional Text to Speech Demo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/index.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='images/butterfly.png') }}">
+    <script src="{{ url_for('static', filename='js/demo.js') }}"></script>
+</head>
+
+<body>
+    <div class="post">
+        <a class="header" href="/"><span class="butterfly"></span></a>
+        <h1>Emotional Text to Speech</h1>
+        <div id="user-input">
+            <input id="user-text" type="text" placeholder="Enter text here..." autofocus></input><span id="submit">Say It!</span>
+        </div>
+        <div id="loading"></div>
+        <div id="classifier-results" style="display:none;">
+            <h2>Sadness</h2>
+            <table>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+
+</html>
