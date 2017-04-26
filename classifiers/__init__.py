@@ -1,1 +1,2 @@
-from .classifiers import UnigramClassifier, LSTMClassifier
+from .unigram import UnigramClassifier
+from .lstm import LstmClassifier
