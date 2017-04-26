@@ -56,8 +56,8 @@ class TweetsDataSource(object):
         self._inputs = [TweetsDataSource._tokenizer.tokenize(text) for text in self._raw_inputs]
         num_inputs = len(self._inputs)
 
-        self._index_emotion = sorted(list(set(emotions)))
-        self._emotion_index = {l: i for i, l in enumerate(self._index_emotion)}
+        self._index_emotion = list(set(emotions))
+        self._emotion_index = {l: l.value for l in self._index_emotion}
         self._num_labels = len(self._index_emotion)
         self._labels = [self._emotion_index[emotion] for emotion in emotions]
 
@@ -95,4 +95,4 @@ class TweetsDataSource(object):
         return [self._labels[i] for i in self._test_indexes]
 
     def decode_labels(self, labels):
-        return [self._index_emotion[i] for i in labels]
+        return [self._index_emotion[i].name for i in labels]

@@ -1,0 +1,6 @@
+model_checkpoint_path: "lstm-96617"
+all_model_checkpoint_paths: "lstm-73476"
+all_model_checkpoint_paths: "lstm-79261"
+all_model_checkpoint_paths: "lstm-85047"
+all_model_checkpoint_paths: "lstm-90832"
+all_model_checkpoint_paths: "lstm-96617"

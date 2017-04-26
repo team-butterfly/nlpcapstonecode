@@ -1,6 +1,7 @@
 """
 Defines a TensorFlow computation graph for a character-level LSTM
 """
+from datetime import datetime
 from collections import deque
 import numpy as np
 import tensorflow as tf
@@ -19,11 +20,22 @@ _true_lengths = tf.placeholder(tf.int32, [None], name="true_lengths")
 
 _one_hot_inputs = tf.one_hot(_inputs, depth=lstm_util.VOCAB_SIZE)
 
-# Global step counter (incremented by the AdamOptimizer on each gradient update)
-_step = tf.Variable(0, name="global_step", trainable=False)
+# If true, dropout is applied to LSTM cell inputs and outputs.
+_use_dropout  = tf.placeholder(tf.bool, name="use_dropout")
+
+_keep_prob = tf.constant(lstm_util.DEFAULT_KEEP_PROB, name="keep_prob")
+
+# if _use_dropout, then _keep_prob else 1.0
+_keep_prob_conditional = tf.cond(
+    _use_dropout, 
+    lambda: _keep_prob,
+    lambda: tf.constant(1.0))
 
 # The LSTM cell and RNN itself
-_cell = tf.contrib.rnn.LSTMCell(lstm_util.HIDDEN_SIZE, state_is_tuple=True)
+_cell = tf.contrib.rnn.DropoutWrapper(
+    tf.contrib.rnn.LSTMCell(lstm_util.HIDDEN_SIZE, state_is_tuple=True),
+    input_keep_prob=_keep_prob_conditional,
+    output_keep_prob=_keep_prob_conditional)
 
 # Add multi-layeredness
 if lstm_util.NUM_LAYERS > 1:
@@ -64,6 +76,8 @@ _correct  = tf.equal(_labels, _labels_predicted)
 _accuracy = tf.reduce_mean(tf.cast(_correct, tf.float32))
 
 # When executed, train op runs one step of gradient descent.
+# Global step counter (incremented by the AdamOptimizer on each gradient update)
+_step = tf.Variable(0, name="global_step", trainable=False)
 _train_op = tf.train.AdamOptimizer().minimize(_loss, global_step=_step)
 # Init op initalizes variables to their default values
 _init_op = tf.global_variables_initializer()
@@ -71,7 +85,7 @@ _init_op = tf.global_variables_initializer()
 # The Saver handles saving all model parameters at checkpoints and
 # restoring them later
 _vars_to_save = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-_saver = tf.train.Saver(_vars_to_save)
+_saver = tf.train.Saver(_vars_to_save, max_to_keep=5)
 
 
 def restore(session):
@@ -110,6 +124,7 @@ class LstmClassifier(Classifier):
         train_data = lstm_util.make_batch(char_inputs, true_labels)
 
         train_feed = {
+            _use_dropout:  True,
             _batch_size:   None,
             _inputs:       None,
             _labels:       None,
@@ -132,7 +147,7 @@ class LstmClassifier(Classifier):
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
                     break
 
-                batch = minibatcher.next(100)
+                batch = minibatcher.next(150)
                 train_feed[_batch_size]   = len(batch.xs)
                 train_feed[_inputs]       = batch.xs
                 train_feed[_labels]       = batch.ys
@@ -143,13 +158,12 @@ class LstmClassifier(Classifier):
 
                 # At end of each epoch, maybe save and report some metrics
                 if minibatcher.is_new_epoch:
-                    console.log()
+                    console.info("\tAverage loss (last {} steps): {:.4f}".format(len(losses), np.mean(losses)))
                     epochs_done += 1
                     if epochs_done % save_every_n_epochs == 0:
                         saved_path = _saver.save(sess, "./ckpts/lstm", global_step=_step)
                         console.log(console.colors.GREEN + console.colors.BRIGHT
-                            + "\tCheckpoint saved to " + saved_path + console.colors.END)
-                    console.log("\tAverage loss (last {} steps): {}".format(len(losses), np.mean(losses)))
+                            + str(datetime.now()) + "\tCheckpoint saved to " + saved_path + console.colors.END)
                     if save_hook is not None:
                         save_hook()
                 else:
@@ -164,6 +178,7 @@ class LstmClassifier(Classifier):
             input_as_chars = lstm_util.encode_raw_inputs(raw_inputs)
             batch = lstm_util.make_batch(input_as_chars, labels=None)
             feed = {
+                _use_dropout:  False,
                 _batch_size:   len(batch.xs),
                 _inputs:       batch.xs,
                 _true_lengths: batch.lengths

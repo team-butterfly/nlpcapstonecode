@@ -2,13 +2,15 @@ import numpy as np
 import tensorflow as tf
 
 from .batch import Batch
+from utility import Emotion
 
 
-NUM_LABELS  = 5   # Number of labels for classifcation
+NUM_LABELS  = len(Emotion)   # Number of labels for classifcation
 HIDDEN_SIZE = 64  # Size of LSTM hidden state
 NUM_LAYERS  = 1   # Number of stacked LSTM layers
 VOCAB_SIZE  = 256 # Number of symbols recognized in input to the LSTM. (256 ASCII chars)
 SEQ_LEN     = 160 # Max sequence length supported by LSTM
+DEFAULT_KEEP_PROB = 0.5
 
 
 def encode_raw_inputs(raw_inputs):

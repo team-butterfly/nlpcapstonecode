@@ -15,14 +15,19 @@ def assess_classifier(classifier, data_src):
     test_predictions = classifier.predict(data_src.test_inputs)
     console.time_end("predicting")
 
+
+
     n_train = len(data_src.train_inputs)
     train_frequencies = np.bincount(data_src.train_labels) / n_train
-    train_mfc = train_frequencies.max()
+    mfc = train_frequencies.argmax()
+    
+    train_mfc = train_frequencies[mfc]
     train_acc = np.equal(train_predictions, data_src.train_labels).mean()
 
     n_test = len(data_src.test_inputs)
     test_frequencies = np.bincount(data_src.test_labels) / n_test
-    test_mfc = test_frequencies[train_frequencies.argmax()]
+    
+    test_mfc = test_frequencies[mfc]
     test_acc = np.equal(test_predictions, data_src.test_labels).mean()
 
     console.h1("Training data:")
@@ -87,4 +92,4 @@ def run_lstm():
     assess_classifier(LstmClassifier(), RawInputsWrapper(tweets_data_src))
 
 if __name__ == "__main__":
-    find_good_unk_threshold(tweets_data_src, 2, 10)
+    run_lstm()
