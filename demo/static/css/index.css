@@ -3,14 +3,16 @@
 #classifier-results h2 {
   text-align: center;
   color: #9f56cc;
-  font-size: 4em; }
+  font-size: 4em;
+  text-transform: lowercase; }
 #classifier-results th,
 #classifier-results td {
   background: none;
   border: none; }
 #classifier-results th {
   width: 2%;
-  text-align: right; }
+  text-align: right;
+  text-transform: lowercase; }
 #classifier-results td {
   padding: 0;
   margin: 0; }

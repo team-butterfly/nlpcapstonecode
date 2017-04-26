@@ -21,6 +21,7 @@ $purple: #9f56cc;
         text-align: center;
         color: $purple;
         font-size: 4em;
+        text-transform: lowercase;
     }
     th,
     td {
@@ -30,6 +31,7 @@ $purple: #9f56cc;
     th {
         width: 2%;
         text-align: right;
+        text-transform: lowercase;
     }
     td {
         padding: 0;

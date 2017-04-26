@@ -1,4 +1,5 @@
 import argparse
+from utility import console
 
 parser = argparse.ArgumentParser(description="Run the LSTM model")
 parser.add_argument("--save", type=int, nargs="?", default=25, help="Save model every N epochs")

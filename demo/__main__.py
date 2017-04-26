@@ -1,6 +1,7 @@
 from flask import Flask, render_template
-from utility import console
+from utility import console, Emotion
 from classifiers import LstmClassifier
+import data_source
 
 app = Flask(__name__)
 lstm = LstmClassifier()
@@ -11,10 +12,11 @@ def main():
 
 @app.route("/classify/<text>")
 def classify(text):
-    console.debug("Classifying", text)
     classifications = lstm.predict([text])
-    console.debug("Got classifications", classifications)
-    return "{\"sadness\" : 0.4, \"joy\" : 0.6}"
+    emotion = Emotion(classifications[0]).name
+    console.debug(text,"->",classifications[0],"->",emotion)
+
+    return "{\"" + emotion + "\" : 1.0}"
 
 if __name__ == "__main__":
     app.run()
