@@ -2,10 +2,11 @@
 # Default to blank target
 default: ;
 
+baseurl = https://homes.cs.washington.edu/~ijchen/cse481n/team-butterfly/
 .PHONY: data
 data:
 	mkdir -p data
-	wget --user team-butterfly --password cse481n https://homes.cs.washington.edu/~ijchen/cse481n/team-butterfly/data/tweets-small.txt -O data/tweets-small.txt
-	wget --user team-butterfly --password cse481n https://homes.cs.washington.edu/~ijchen/cse481n/team-butterfly/data/tweets.v2.txt -O data/tweets.v2.txt
-	wget --user team-butterfly --password cse481n https://homes.cs.washington.edu/~ijchen/cse481n/team-butterfly/data/tweets.v2.part2.txt -O data/tweets.v2.part2.txt
-	wget --user team-butterfly --password cse481n https://homes.cs.washington.edu/~ijchen/cse481n/team-butterfly/data/tweets.v2.part3.txt -O data/tweets.v2.part3.txt
+	wget --user team-butterfly --password cse481n $(baseurl)data/listing -O data/listing
+	for file in `cat data/listing`; do \
+		wget --user team-butterfly --password cse481n $(baseurl)data/$$file -O data/$$file; \
+	done
