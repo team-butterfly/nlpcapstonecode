@@ -5,12 +5,12 @@ from classifiers import UnigramClassifier, LstmClassifier
 from data_source import TweetsDataSource
 from utility import console, Emotion
 import numpy as np
-import random
 
-tweets_data_src = TweetsDataSource("data/tweets.v2.txt",
-                                   "data/tweets.v2.part2.txt",
-                                   "data/tweets.v2.part3.txt",
-								   random_seed=5)
+tweets = TweetsDataSource(
+    "data/tweets.v2.txt",
+    "data/tweets.v2.part2.txt",
+    "data/tweets.v2.part3.txt",
+    random_seed=5)
 
 def print_metrics(title, truth, predictions, mfc_class):
     N = len(truth)
@@ -27,30 +27,30 @@ def print_metrics(title, truth, predictions, mfc_class):
     if mfc_acc >= acc:
         console.warn("Your classifier isn't better than the MFC!")
 
+    console.h1("\t" + "-"*30)
+
     for i in range(len(Emotion)):
-        console.h1("Label {} ({})".format(i, Emotion(i).name))
+        console.h1("\tLabel {} ({})".format(i, Emotion(i).name))
 
         truth_is_pos = np.equal(truth, i)
         pred_is_pos  = np.equal(predictions, i)
 
         if truth_is_pos.sum() == 0 and pred_is_pos.sum() == 0:
-            console.h1("\t[absent]")
+            console.h1("\t\t[absent]")
             continue
 
-        true_pos     = np.logical_and(truth_is_pos, pred_is_pos).sum()
-        false_pos    = np.logical_and(~truth_is_pos, pred_is_pos).sum()
-        true_neg     = np.logical_and(~truth_is_pos, ~pred_is_pos).sum()
-        false_neg    = np.logical_and(truth_is_pos, ~pred_is_pos).sum()
+        true_pos  = np.logical_and(truth_is_pos, pred_is_pos).sum()
+        false_pos = np.logical_and(~truth_is_pos, pred_is_pos).sum()
+        true_neg  = np.logical_and(~truth_is_pos, ~pred_is_pos).sum()
+        false_neg = np.logical_and(truth_is_pos, ~pred_is_pos).sum()
 
         precision = true_pos / (true_pos + false_pos)
         recall = true_pos / (true_pos + false_neg)
         f1 = 2 * (precision * recall) / (precision + recall)
 
-
-        console.h1("\tPrec:\t{:.4f}".format(precision))
-        console.h1("\tRec:\t{:.4f}".format(recall))
-        console.h1("\tF1:\t{:.4f}".format(f1))
-
+        console.h1("\t\tPrec:\t{:.4f}".format(precision))
+        console.h1("\t\tRec:\t{:.4f}".format(recall))
+        console.h1("\t\tF1:\t{:.4f}".format(f1))
 
 
 def assess_classifier(classifier, data_src):
@@ -69,39 +69,24 @@ def assess_classifier(classifier, data_src):
 
 class RawInputsWrapper():
     def __init__(self, data_src):
-        self._data_src = data_src
-        
-    @property
-    def train_inputs(self):
-        return self._data_src.train_raw_inputs
-
-    @property
-    def train_labels(self):
-        return self._data_src.train_labels
-
-    @property
-    def test_inputs(self):
-        return self._data_src.test_raw_inputs
-
-    @property
-    def test_labels(self):
-        return self._data_src.test_labels
+        self.train_inputs = data_src.train_raw_inputs
+        self.train_labels = data_src.train_labels
+        self.test_inputs = data_src.test_raw_inputs
+        self.test_labels = data_src.test_labels
 
 
 if __name__ == "__main__":
-    for label in tweets_data_src.test_labels:
+    for label in tweets.test_labels:
         assert Emotion(label).value == label
-    for label in tweets_data_src.train_labels:
+    for label in tweets.train_labels:
         assert Emotion(label).value == label
 
     console.h1("UnigramClassifier")
     unigram = UnigramClassifier(len(Emotion))
-    unigram.train(tweets_data_src.train_inputs, tweets_data_src.train_labels, max_epochs=10000)
-    assess_classifier(unigram, tweets_data_src)
+    unigram.train(tweets.train_inputs, tweets.train_labels, max_epochs=1000)
+    assess_classifier(unigram, tweets)
     
     console.h1("-" * 80)
     console.h1("LstmClassifier")
-    lstm_input = RawInputsWrapper(tweets_data_src)
+    lstm_input = RawInputsWrapper(tweets)
     assess_classifier(LstmClassifier(), lstm_input)
-
-
