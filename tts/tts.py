@@ -19,26 +19,27 @@ class TTS():
             (0.4,  0.05),
             (0.6,  0.1),
             (0.7,  0.1),
-            (0.9,  0.2),
-            (1.0,  0.3)
+            (0.9,  0.15),
+            (1.0,  0.2)
         ],
         Emotion.ANGER : [
             (0.0,  0.0),
             (0.4, -0.1),
             (0.6, -0.1),
             (0.7,  0.0),
-            (0.8, -0.15),
+            (0.8, -0.1),
             (1.0, -0.2)
         ],
         Emotion.SURPRISE : [
             (0.0,  0.0),
-            (0.5, 0.15),
-            (1.0, 0.3)
+            (0.7, 0.0),
+            (0.8, 0.1),
+            (1.0, 0.2)
         ],
         Emotion.SADNESS : [
             (0.0,  0.0),
-            (0.5, -0.15),
-            (1.0, -0.3)
+            (0.5, -0.1),
+            (1.0, -0.2)
         ]
     }
     def __init__(self):
@@ -97,7 +98,7 @@ class TTS():
 
     def apply_pitch_envelope_to_file(self, file_path, envelope):
         # get spectrogram
-        console.debug("file_to_spectrogram", file_path)
+        # console.debug("file_to_spectrogram", file_path)
         spectrogram, phase = self.file_to_spectrogram(file_path)
         # self.save_spectrogram(spectrogram, "/Users/ollin/Desktop/original.png")
         # apply envelope
@@ -105,21 +106,21 @@ class TTS():
         # self.save_spectrogram(spectrogram2, "/Users/ollin/Desktop/distorted.png")
         # save output
         new_file_path = file_path.replace(".aif", ".wav")
-        console.debug("spectrogram_to_file new_file_path", new_file_path)
+        # console.debug("spectrogram_to_file new_file_path", new_file_path)
         self.spectrogram_to_file(spectrogram2, np.zeros(phase.shape), new_file_path)
         os.remove(file_path)
         return new_file_path
 
     def speak_raw(self, text, output_path):
-        console.debug("speak_raw output_path", output_path)
+        # console.debug("speak_raw output_path", output_path)
         assert output_path.endswith(".aif") or output_path.endswith(".aiff")
         os.system("say '" + text.replace("'", "") + "' -o '" + output_path + "'")
 
     def speak(self, text, emotion, output_path):
-        console.debug("speak output_path", output_path)
+        # console.debug("speak output_path", output_path)
         self.speak_raw(text, output_path)
         new_file_path = self.apply_pitch_envelope_to_file(output_path, self.envelopes[emotion])
-        console.debug("speak new_file_path", new_file_path)
+        # console.debug("speak new_file_path", new_file_path)
         console.log("Spoke output to", new_file_path)
         return new_file_path
     def as_file_path(self, text):

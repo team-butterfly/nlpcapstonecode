@@ -1,7 +1,7 @@
 from flask import Flask, render_template
 import os
+import numpy as np
 from utility import console, Emotion
-from data_source import TweetsDataSource
 
 console.log()
 console.h1("Initializing Server")
@@ -12,7 +12,6 @@ from tts import TTS
 app = Flask(__name__)
 lstm = LstmClassifier()
 tts = TTS()
-data_source = TweetsDataSource("data/tweets.v2.txt", random_seed=5)
 
 def say(text, emotion):
     output_path = "/tmp/" + tts.as_file_path(text) + ".aif"
@@ -25,14 +24,18 @@ def main():
 
 @app.route("/classify/<text>")
 def classify(text):
-    classifications = lstm.predict([text])
+    classifications = lstm.predict_soft([text])[0]
     console.debug("classifications:", classifications)
-    decoded = data_source.decode_labels(classifications)[0]
-    console.debug("decode_labels(classifications):", decoded)
-    emotion = decoded
-    console.debug(text,"->",classifications[0],"->",emotion)
-    say(text, Emotion[emotion])
-    return "{\"" + emotion + "\" : 1.0}"
+    console.debug("best:", np.argmax(classifications),Emotion(np.argmax(classifications)))
+    say(text, Emotion(np.argmax(classifications)))
+    output = "{"
+    for i in range(0, len(classifications)):
+        emotion = Emotion(i).name
+        weight = classifications[i]
+        if i > 0:
+            output += (",\n")
+        output += "\"" + str(emotion) + "\" : " + str(weight)
+    return output + "}"
 
 console.h1("Server Ready")
 app.run()

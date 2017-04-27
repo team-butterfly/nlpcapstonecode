@@ -18,7 +18,6 @@ window.addEventListener("load", () => {
 
     var classify = (text) => {
         return new Promise((resolve, reject) => {
-            console.log("whee");
             var xhr = new XMLHttpRequest();
             xhr.onreadystatechange = function() {
                 console.log(this);
@@ -53,25 +52,30 @@ window.addEventListener("load", () => {
             var h2 = results.querySelector("h2");
             var maxClass;
             table.innerHTML = "";
+            var sorted = [];
             for (let key in result) {
                 if (!maxClass || result[key] > result[maxClass]) {
                     maxClass = key;
                 }
+                sorted.push([key, result[key]])
             }
+            sorted = sorted.sort((a, b) => b[1] - a[1]);
 
             h2.textContent = maxClass;
-            for (let key in result) {
+            for (var i = 0; i < sorted.length; i++) {
+                let key = sorted[i][0]
+                let value = sorted[i][1]
                 let tr = document.createElement("tr");
                 let th = document.createElement("th");
                 let td = document.createElement("td");
                 let bar = document.createElement("span");
                 bar.classList.add("bar");
                 th.textContent = key;
-                bar.textContent = result[key];
+                bar.textContent = value;
                 tr.appendChild(th);
                 tr.appendChild(td);
                 td.appendChild(bar);
-                bar.style.width = Math.round(100 * result[key]) + "%";
+                bar.style.width = Math.round(100 * value / result[maxClass]) + "%";
                 if (key == maxClass) {
                     bar.classList.add("max-probability-class");
                 }
