@@ -23,7 +23,7 @@ _one_hot_inputs = tf.one_hot(_inputs, depth=lstm_util.VOCAB_SIZE)
 # If true, dropout is applied to LSTM cell inputs and outputs.
 _use_dropout  = tf.placeholder(tf.bool, name="use_dropout")
 
-_keep_prob = tf.constant(lstm_util.DEFAULT_KEEP_PROB, name="keep_prob")
+_keep_prob = tf.constant(0.25, name="keep_prob")
 
 # if _use_dropout, then _keep_prob else 1.0
 _keep_prob_conditional = tf.cond(

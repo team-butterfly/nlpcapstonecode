@@ -7,7 +7,10 @@ from utility import console, Emotion
 import numpy as np
 import random
 
-tweets_data_src = TweetsDataSource("data/tweets.v2.txt", random_seed=5)
+tweets_data_src = TweetsDataSource("data/tweets.v2.txt",
+                                   "data/tweets.v2.part2.txt",
+                                   "data/tweets.v2.part3.txt",
+								   random_seed=5)
 
 def print_metrics(title, truth, predictions, mfc_class):
     N = len(truth)
