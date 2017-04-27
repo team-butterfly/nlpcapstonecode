@@ -13,9 +13,9 @@ from data_source import TweetsDataSource
 from classifiers import LstmClassifier
 
 data_src = TweetsDataSource("data/tweets.v2.txt",
-							"data/tweets.v2.part2.txt",
-							"data/tweets.v2.part3.txt",
-							random_seed=5)
+                            "data/tweets.v2.part2.txt",
+                            "data/tweets.v2.part3.txt",
+                            random_seed=5)
 
 lstm = LstmClassifier()
 lstm.train(
