@@ -174,6 +174,10 @@ class LstmClassifier(Classifier):
 
 
     def predict(self, raw_inputs):
+        return np.argmax(self.predict_soft(raw_inputs), axis=1)
+
+
+    def predict_soft(self, raw_inputs):
         with tf.Session() as sess:
             restore(sess)
             input_as_chars = lstm_util.encode_raw_inputs(raw_inputs)
@@ -184,5 +188,5 @@ class LstmClassifier(Classifier):
                 _inputs:       batch.xs,
                 _true_lengths: batch.lengths
             }
-            predictions = sess.run(_labels_predicted, feed)
-        return predictions
+            soft_labels = sess.run(_softmax, feed)
+        return soft_labels
