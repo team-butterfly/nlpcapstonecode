@@ -23,7 +23,7 @@ _one_hot_inputs = tf.one_hot(_inputs, depth=lstm_util.VOCAB_SIZE)
 # If true, dropout is applied to LSTM cell inputs and outputs.
 _use_dropout  = tf.placeholder(tf.bool, name="use_dropout")
 
-_keep_prob = tf.constant(0.25, name="keep_prob")
+_keep_prob = tf.constant(0.5, name="keep_prob")
 
 # if _use_dropout, then _keep_prob else 1.0
 _keep_prob_conditional = tf.cond(
@@ -85,7 +85,7 @@ _init_op = tf.global_variables_initializer()
 # The Saver handles saving all model parameters at checkpoints and
 # restoring them later
 _vars_to_save = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-_saver = tf.train.Saver(_vars_to_save, max_to_keep=5)
+_saver = tf.train.Saver(_vars_to_save, max_to_keep=10000)
 
 
 def restore(session):
@@ -108,7 +108,7 @@ class LstmClassifier(Classifier):
         num_epochs=None,
         continue_previous=True,
         save_every_n_epochs=5,
-        save_hook=None):
+        save_hook=lambda epoch, step: None):
         """
         Args:
             `raw_inputs` a list of raw tweets. i.e, a list of strings.
@@ -117,8 +117,8 @@ class LstmClassifier(Classifier):
             `continue_previous` if `True`, load params from latest checkpoint and
                 continue training from there.
             `save_every_n_epochs`
-            `save_hook` if given, a callable that will be called whenever a
-                new checkpoint is saved
+            `save_hook` if given, a callable that will be called with parameters
+                (epoch number, step number) whenever a new checkpoint is saved
         """
         char_inputs = lstm_util.encode_raw_inputs(raw_inputs)
         train_data = lstm_util.make_batch(char_inputs, true_labels)
@@ -147,13 +147,13 @@ class LstmClassifier(Classifier):
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
                     break
 
-                batch = minibatcher.next(150)
+                batch = minibatcher.next(128)
                 train_feed[_batch_size]   = len(batch.xs)
                 train_feed[_inputs]       = batch.xs
                 train_feed[_labels]       = batch.ys
                 train_feed[_true_lengths] = batch.lengths
 
-                [_, cur_loss] = sess.run([_train_op, _loss], train_feed)
+                [_, cur_loss, step] = sess.run([_train_op, _loss, _step], train_feed)
                 losses.append(cur_loss)
 
                 # At end of each epoch, maybe save and report some metrics
@@ -162,13 +162,14 @@ class LstmClassifier(Classifier):
                     epochs_done += 1
                     if epochs_done % save_every_n_epochs == 0:
                         saved_path = _saver.save(sess, "./ckpts/lstm", global_step=_step)
-                        console.log(console.colors.GREEN + console.colors.BRIGHT
-                            + str(datetime.now()) + "\tCheckpoint saved to " + saved_path + console.colors.END)
-                    if save_hook is not None:
-                        save_hook()
+                        console.log(
+                            console.colors.GREEN + console.colors.BRIGHT
+                            + "{}\tCheckpoint saved to {}".format(datetime.now(), saved_path)
+                            + console.colors.END)
+                        save_hook(epochs_done, step)
                 else:
                     # Print some stuff so we know it's making progress
-                    label = "Global Step {}".format(sess.run(_step))
+                    label = "Global Step {}".format(step)
                     console.progress_bar(label, minibatcher.epoch_progress, 60)
 
 
