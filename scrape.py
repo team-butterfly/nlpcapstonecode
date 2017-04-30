@@ -26,12 +26,9 @@ filename = 'tweets.v2.txt'
 
 # Add more emotion entries here
 search_emojis = {
-    Emotion.NEUTRAL: [':neutral_face:', ':expressionless:', ':no_mouth:'],
-    Emotion.JOY: [':grinning:', ':grin:', ':joy:', ':rolling_on_the_floor_laughing:', ':smiley:', ':smile:'],
-    Emotion.SADNESS: [':frowning_face:', ':slightly_frowning_face:', ':disappointed:', ':crying_face:', ':loudly_crying_face:'],
+    Emotion.JOY: [':grinning:', ':grin:', ':joy:', ':rolling_on_the_floor_laughing:', ':smiley:', ':smile:', ':party_popper:'],
+    Emotion.SADNESS: [':frowning_face:', ':slightly_frowning_face:', ':disappointed:', ':crying_face:', ':loudly_crying_face:', ':neutral_face:'],
     Emotion.ANGER: [':rage:', ':anger_symbol:', ':angry_face:'],
-    # Emotion.DISGUST: [],
-    Emotion.SURPRISE: [':open_mouth:', ':hushed:', ':astonished:'],
 }
 
 # Maximum number of tweets to scrape for each emotion
