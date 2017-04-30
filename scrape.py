@@ -4,8 +4,9 @@ import codecs
 import emoji
 import itertools
 import json
-import tweepy
 import re
+import sys
+import tweepy
 
 from utility.emotion import Emotion
 
@@ -22,7 +23,7 @@ api = tweepy.API(auth)
 
 # ----- PARAMETERS -----
 
-filename = 'tweets.v2.txt'
+filename = sys.argv[1]
 
 # Add more emotion entries here
 search_emojis = {
