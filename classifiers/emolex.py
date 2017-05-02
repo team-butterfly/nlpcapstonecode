@@ -97,8 +97,6 @@ class EmoLexBowClassifier(Classifier):
             idxs = np.arange(64)
             for t in range(1, 10001):
                 batch = minibatcher.next(64)
-                np.random.shuffle(idxs)
-                batch = Batch(batch.xs[idxs], batch.ys[idxs], None)
                 train_feed = {
                     self._g.inputs: batch.xs,
                     self._g.labels: batch.ys

@@ -8,11 +8,9 @@ import numpy as np
 
 EPS = 1E-8
 
-tweets = TweetsDataSource(
-    "data/tweets.v2.txt",
-    "data/tweets.v2.part2.txt",
-    "data/tweets.v2.part3.txt",
-    random_seed=5)
+tweets_v3 = ["data/tweets.v3.part{:02d}.txt".format(n) for n in range(1, 11)]
+
+tweets = TweetsDataSource(*tweets_v3, random_seed=5)
 
 def print_metrics(title, truth, predictions, mfc_class):
     N = len(truth)
@@ -83,24 +81,23 @@ if __name__ == "__main__":
     for label in tweets.train_labels:
         assert Emotion(label).value == label
 
-    """
     console.h1("UnigramClassifier")
     unigram = UnigramClassifier(len(Emotion))
     unigram.train(tweets.train_inputs, tweets.train_labels, max_epochs=1000)
     assess_classifier(unigram, tweets)
     
-    console.h1("-" * 80)
-    console.h1("LstmClassifier")
-    lstm_input = RawInputsWrapper(tweets)
-    assess_classifier(LstmClassifier(), lstm_input)
-    """
-
     console.h1("EmoLexBowClassifier")
     emolex = EmoLexBowClassifier("data/emolex/emolex.txt")
     emolex.train(tweets.train_inputs, tweets.train_labels)
     assess_classifier(emolex, tweets)
 
+    """
+    console.h1("-" * 80)
+    console.h1("LstmClassifier")
+    lstm_input = RawInputsWrapper(tweets)
+    assess_classifier(LstmClassifier(), lstm_input)
     while True:
         a = tweets._tokenizer.tokenize(input("Sentence: "))
         print(Emotion(emolex.predict([a])[0]))
+    """
 

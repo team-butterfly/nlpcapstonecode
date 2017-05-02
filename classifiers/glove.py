@@ -43,12 +43,11 @@ class _GloveGraph():
                     initial_value=initial_embeddings,
                     dtype=tf.float32,
                     name="embeddings")
+                self.embeddings = tf.where(
+                    self.train_embeddings,
+                    self.embeddings,
+                    tf.stop_gradient(self.embeddings))
                 self.inputs_embedded = tf.nn.embedding_lookup(self.embeddings, self.inputs, max_norm=1.0)
-
-            self.embeddings = tf.where(
-                self.train_embeddings,
-                self.embeddings,
-                tf.stop_gradient(self.embeddings))
 
             # if self.use_dropout, then _keep_prob else 1.0
             self.keep_prob_conditional = tf.where(
