@@ -1,10 +1,12 @@
 """
 Try running the models
 """
-from classifiers import UnigramClassifier, LstmClassifier
+from classifiers import UnigramClassifier, LstmClassifier, EmoLexBowClassifier
 from data_source import TweetsDataSource
 from utility import console, Emotion
 import numpy as np
+
+EPS = 1E-8
 
 tweets = TweetsDataSource(
     "data/tweets.v2.txt",
@@ -44,9 +46,9 @@ def print_metrics(title, truth, predictions, mfc_class):
         true_neg  = np.logical_and(~truth_is_pos, ~pred_is_pos).sum()
         false_neg = np.logical_and(truth_is_pos, ~pred_is_pos).sum()
 
-        precision = true_pos / (true_pos + false_pos)
-        recall = true_pos / (true_pos + false_neg)
-        f1 = 2 * (precision * recall) / (precision + recall)
+        precision = true_pos / (true_pos + false_pos + EPS)
+        recall = true_pos / (true_pos + false_neg + EPS)
+        f1 = 2 * (precision * recall) / (precision + recall + EPS)
 
         console.h1("\t\tPrec:\t{:.4f}".format(precision))
         console.h1("\t\tRec:\t{:.4f}".format(recall))
@@ -81,6 +83,7 @@ if __name__ == "__main__":
     for label in tweets.train_labels:
         assert Emotion(label).value == label
 
+    """
     console.h1("UnigramClassifier")
     unigram = UnigramClassifier(len(Emotion))
     unigram.train(tweets.train_inputs, tweets.train_labels, max_epochs=1000)
@@ -90,3 +93,14 @@ if __name__ == "__main__":
     console.h1("LstmClassifier")
     lstm_input = RawInputsWrapper(tweets)
     assess_classifier(LstmClassifier(), lstm_input)
+    """
+
+    console.h1("EmoLexBowClassifier")
+    emolex = EmoLexBowClassifier("data/emolex/emolex.txt")
+    emolex.train(tweets.train_inputs, tweets.train_labels)
+    assess_classifier(emolex, tweets)
+
+    while True:
+        a = tweets._tokenizer.tokenize(input("Sentence: "))
+        print(Emotion(emolex.predict([a])[0]))
+
