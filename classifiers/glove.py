@@ -1,5 +1,5 @@
 """
-Defines a TensorFlow computation graph for a character-level LSTM
+Defines a word-level LSTM with GloVe embeddings
 """
 from datetime import datetime
 from collections import deque, defaultdict
@@ -43,11 +43,12 @@ class _GloveGraph():
                     initial_value=initial_embeddings,
                     dtype=tf.float32,
                     name="embeddings")
-                self.embeddings = tf.where(
-                    self.train_embeddings,
-                    self.embeddings,
-                    tf.stop_gradient(self.embeddings))
                 self.inputs_embedded = tf.nn.embedding_lookup(self.embeddings, self.inputs, max_norm=1.0)
+                # if train_embeddings is true, stop gradient backprop at the embedded inputs.
+                self.inputs_embedded = tf.where(
+                    self.train_embeddings,
+                    self.inputs_embedded,
+                    tf.stop_gradient(self.inputs_embedded))
 
             # if self.use_dropout, then _keep_prob else 1.0
             self.keep_prob_conditional = tf.where(
@@ -201,7 +202,7 @@ class GloveClassifier(Classifier):
                     break
 
                 batch = minibatcher.next(256)
-                train_feed[self._g.train_embeddings] = minibatcher.cur_epoch < 8
+                train_feed[self._g.train_embeddings] = False # minibatcher.cur_epoch < 8
                 train_feed[self._g.batch_size]   = len(batch.xs)
                 train_feed[self._g.inputs]       = batch.xs
                 train_feed[self._g.labels]       = batch.ys
