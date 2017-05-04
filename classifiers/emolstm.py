@@ -1,6 +1,3 @@
-"""
-Defines a word-level LSTM with GloVe embeddings
-"""
 from datetime import datetime
 from collections import deque, defaultdict
 import pickle
@@ -17,38 +14,24 @@ def xavier(size_in, size_out):
     return tf.random_uniform((size_in, size_out), minval=-d, maxval=d) 
 
 
-class _GloveGraph():
+class _EmoLstmGraph():
 
     HIDDEN_SIZE = 128
     NUM_LABELS = len(Emotion)
 
-    def __init__(self, vocab_size, embed_size, initial_embeddings):
-        console.info("Building Glove graph")
+    def __init__(self, word_dim):
+        console.info("Building EmoLstm graph")
         self.root = tf.Graph()
         with self.root.as_default():
             # Model inputs
             self.batch_size   = tf.placeholder(tf.int32, name="batch_size")
-            self.inputs       = tf.placeholder(tf.int32, [None, None], name="inputs")
+            self.inputs       = tf.placeholder(tf.float32, [None, None, word_dim], name="inputs")
             self.labels       = tf.placeholder(tf.int32, [None], name="labels")
             self.true_lengths = tf.placeholder(tf.int32, [None], name="true_lengths")
-
-            self.train_embeddings = tf.constant(False, name="train_embeddings")
 
             # If true, dropout is applied to LSTM cell inputs and outputs.
             self.use_dropout = tf.constant(False, name="use_dropout")
             self.keep_prob = tf.constant(0.5, name="keep_prob")
-
-            with tf.device("/cpu:0"):
-                self.embeddings = tf.Variable(
-                    initial_value=initial_embeddings,
-                    dtype=tf.float32,
-                    name="embeddings")
-                self.inputs_embedded = tf.nn.embedding_lookup(self.embeddings, self.inputs, max_norm=1.0)
-                # if train_embeddings is true, stop gradient backprop at the embedded inputs.
-                self.inputs_embedded = tf.where(
-                    self.train_embeddings,
-                    self.inputs_embedded,
-                    tf.stop_gradient(self.inputs_embedded))
 
             # if self.use_dropout, then _keep_prob else 1.0
             self.keep_prob_conditional = tf.where(
@@ -62,24 +45,20 @@ class _GloveGraph():
                     input_keep_prob=self.keep_prob_conditional,
                     output_keep_prob=self.keep_prob_conditional)
             
-            # Bi-LSTM here
-            self.cell_fw = make_cell(self.HIDDEN_SIZE)
-            self.cell_bw = make_cell(self.HIDDEN_SIZE)
+            self.cell = make_cell(self.HIDDEN_SIZE)
 
-            self.outputs, (final_fw, final_bw) = tf.nn.bidirectional_dynamic_rnn(
-                self.cell_fw,
-                self.cell_bw,
-                self.inputs_embedded,
-                initial_state_fw=self.cell_fw.zero_state(self.batch_size, tf.float32),
-                initial_state_bw=self.cell_bw.zero_state(self.batch_size, tf.float32),
+            self.outputs, final_cell_state = tf.nn.dynamic_rnn(
+                self.cell,
+                self.inputs,
+                initial_state=self.cell.zero_state(self.batch_size, tf.float32),
                 sequence_length=self.true_lengths,
                 dtype=tf.float32)
 
-            self.final_state = tf.concat([final_fw.h, final_bw.h], axis=1)
+            self.final_state = final_cell_state.h
 
             # Weights and biases for the fully-connected layer that
             # projects the final LSTM state down to the size of the label space
-            self.w = tf.Variable(xavier(self.HIDDEN_SIZE*2, self.NUM_LABELS), name="dense_weights")
+            self.w = tf.Variable(xavier(self.HIDDEN_SIZE, self.NUM_LABELS), name="dense_weights")
             self.b = tf.Variable(tf.zeros(self.NUM_LABELS), name="dense_biases")
 
             self.logits = tf.nn.xw_plus_b(self.final_state, self.w, self.b)
@@ -106,44 +85,53 @@ class _GloveGraph():
             self.saver = tf.train.Saver(self.vars_saved, max_to_keep=10)
 
 
-class GloveClassifier(Classifier):
-    
-    def __init__(self, embeddings_pkl):
-        console.info("Loading vectors from", embeddings_pkl)
-        console.time("GloveVectors init")
-        with open(embeddings_pkl, "rb") as f:
-            self._glove = pickle.load(f)
-        console.time_end("GloveVectors init")
-        self._g = _GloveGraph(
-            self._glove["vocab_size"],
-            self._glove["dimension"],
-            self._glove["embeddings"])
+class EmoLstmClassifier(Classifier):
 
-    def _restore(self, session):
-        latest_ckpt = tf.train.latest_checkpoint("./ckpts/glove")
-        if latest_ckpt is None:
-            raise ValueError("Latest checkpoint does not exist")
+    _keys = (
+        "anger",
+        "anticipation",
+        "disgust",
+        "fear",
+        "joy",
+        "negative",
+        "positive",
+        "sadness",
+        "surprise",
+        "trust"
+    )
 
-        self._g.saver.restore(session, latest_ckpt)
-        console.info("Restored model from", latest_ckpt)
+    def __init__(self, emolex_path):
+        self._index_emotion = self._keys
+        self._emotion_index = {key: i for i, key in enumerate(self._keys)}
+        self._map = defaultdict(lambda: np.zeros(len(self._keys), np.int32))
+        self._g = _EmoLstmGraph(len(self._keys))
 
-    def _batch_from_tokens(self, input_tokens, true_labels):
-        console.time("batch from tokens")
-        maxlen = max(len(sentence) for sentence in input_tokens)
-        wordids = np.zeros([len(input_tokens), maxlen], np.int32)
-        lengths = np.zeros(len(input_tokens), np.int32)
+        with open(emolex_path) as f:
+            f.readline()
+            for line in f.readlines():
+                word, emotion, assoc = line.split("\t")
+                self._map[word][self._emotion_index[emotion]] = int(assoc)
 
-        for i, sentence in enumerate(input_tokens):
-            lengths[i] = len(sentence)
-            for j, token in enumerate(sentence):
-                token_lower = token.lower() # GloVe vocabulary is uncased
-                wordids[i, j] = self._glove["word_index"].get(token_lower, 0)
 
-        console.time_end("batch from tokens")
-        return Batch(
-            xs=wordids,
-            ys=np.array(true_labels, np.int32) if true_labels is not None else None,
-            lengths=lengths)
+    def _to_vector(self, token):
+        word = token.lower()
+        vec = self._map[word]
+        if (vec > 0).all():
+            return vec / np.linalg.norm(vec)
+        else:
+            return vec
+
+
+    def _batch_from_tokens(self, input_tokens, labels):
+        maxlen = max(len(toks) for toks in input_tokens)
+        out = np.zeros([len(input_tokens), maxlen, len(self._keys)], dtype=np.float32)
+        lens = np.zeros(len(input_tokens))
+        for i, tokens in enumerate(input_tokens):
+            lens[i] = len(tokens)
+            for j, token in enumerate(tokens):
+                out[i, j] = self._to_vector(token)
+        return Batch(out, np.array(labels), lens)
+
 
     def train(self,
         input_tokens,
@@ -190,19 +178,13 @@ class GloveClassifier(Classifier):
         minibatcher = Minibatcher(train_data)
 
         with tf.Session(graph=self._g.root) as sess:
-            try:
-                self._restore(sess)
-            except Exception as e:
-                console.warn("Failed to restore from previous checkpoint:", e)
-                console.warn("The model will be initialized from scratch.")
-                sess.run(self._g.init_op)
+            sess.run(self._g.init_op)
 
             while True:
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
                     break
 
                 batch = minibatcher.next(256)
-                train_feed[self._g.train_embeddings] = minibatcher.cur_epoch < 8
                 train_feed[self._g.batch_size]   = len(batch.xs)
                 train_feed[self._g.inputs]       = batch.xs
                 train_feed[self._g.labels]       = batch.ys

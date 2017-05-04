@@ -15,20 +15,12 @@ class _EmoLexGraph():
             self.labels = tf.placeholder(tf.int32, [None]) # true labels
             
             self.w = tf.Variable(
-                    tf.truncated_normal([input_dim, output_dim], stddev=2/np.sqrt(input_dim)))
+                    tf.random_uniform([input_dim, output_dim],
+                        minval=-6/np.sqrt(input_dim + output_dim),
+                        maxval=-6/np.sqrt(input_dim + output_dim)))
             self.b = tf.Variable(tf.zeros([output_dim]))
 
-            self.h0 = tf.nn.elu(tf.nn.xw_plus_b(self.inputs, self.w, self.b))
-            self.w0 = tf.Variable(
-                    tf.truncated_normal([output_dim, output_dim], stddev=2/np.sqrt(output_dim)))
-            self.b0 = tf.Variable(tf.zeros([output_dim]))
-
-            self.h1 = tf.nn.elu(tf.nn.xw_plus_b(self.h0, self.w0, self.b0))
-            self.w1 = tf.Variable(
-                    tf.truncated_normal([output_dim, output_dim], stddev=2/np.sqrt(output_dim)))
-            self.b1 = tf.Variable(tf.zeros([output_dim]))
-
-            self.logits = tf.nn.xw_plus_b(self.h1, self.w1, self.b1)
+            self.logits = tf.nn.xw_plus_b(self.inputs, self.w, self.b)
             self.probabilities = tf.nn.softmax(self.logits)
 
             self.loss = tf.reduce_mean(
@@ -63,7 +55,7 @@ class EmoLexBowClassifier(Classifier):
             f.readline()
             for line in f.readlines():
                 word, emotion, assoc = line.split("\t")
-                self._map[word][self._emotion_index[emotion]] = assoc
+                self._map[word][self._emotion_index[emotion]] = int(assoc)
 
 
     def _to_vector(self, sent):
@@ -72,7 +64,10 @@ class EmoLexBowClassifier(Classifier):
             word = word1.lower()
             if word in self._map:
                 counts += self._map[word]
-        return counts # TODO look at not-unit vector
+        if (counts > 0).all():
+            return counts / np.linalg.norm(counts)
+        else:
+            return counts
 
 
     def _encode_inputs(self, input_tokens):
@@ -80,9 +75,10 @@ class EmoLexBowClassifier(Classifier):
         bad = 0
         for i, tokens in enumerate(input_tokens):
             input_counts[i] = self._to_vector(tokens)
-            if input_counts[i].sum() == 0:
+            if all(tok not in self._map for tok in tokens):
                 bad += 1
-        console.warn("{} of {} inputs are completely zero.".format(bad, len(input_tokens)))
+        if bad > 0:
+            console.warn("{} of {} inputs are completely OOV".format(bad, len(input_tokens)))
         return input_counts
 
 
@@ -90,11 +86,8 @@ class EmoLexBowClassifier(Classifier):
         train_data = Batch(xs=self._encode_inputs(input_tokens), ys=np.array(labels), lengths=None)
         minibatcher = Minibatcher(train_data)
 
-        losses = deque(maxlen=50)
-
         with tf.Session(graph=self._g.graph) as sess:
             sess.run(self._g.init_op)
-            idxs = np.arange(64)
             for t in range(1, 10001):
                 batch = minibatcher.next(64)
                 train_feed = {
@@ -102,15 +95,8 @@ class EmoLexBowClassifier(Classifier):
                     self._g.labels: batch.ys
                 }
                 _, loss = sess.run((self._g.train_op, self._g.loss), train_feed)
-                losses.append(loss)
-                if t % 50 == 0:
-                    console.log("{:.6f}".format(np.mean(losses)))
             self._w_save = sess.run(self._g.w)
             self._b_save = sess.run(self._g.b)
-            self._w0_save = sess.run(self._g.w0)
-            self._b0_save = sess.run(self._g.b0)
-            self._w1_save = sess.run(self._g.w1)
-            self._b1_save = sess.run(self._g.b1)
 
 
     def predict(self, input_tokens):
@@ -121,10 +107,6 @@ class EmoLexBowClassifier(Classifier):
         feed = {
             self._g.w: self._w_save,
             self._g.b: self._b_save,
-            self._g.w0: self._w0_save,
-            self._g.b0: self._b0_save,
-            self._g.w1: self._w1_save,
-            self._g.b1: self._b1_save,
             self._g.inputs: self._encode_inputs(input_tokens)
         }
         with tf.Session(graph=self._g.graph) as sess:

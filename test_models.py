@@ -91,6 +91,14 @@ if __name__ == "__main__":
     emolex.train(tweets.train_inputs, tweets.train_labels)
     assess_classifier(emolex, tweets)
 
+    oov = 0
+    tot = 0
+    for tokens in tweets.train_inputs:
+        oov += sum(token not in emolex._map for token in tokens)
+        tot += len(tokens)
+
+    console.warn("Training set is {:.4f} OOV".format(oov/tot))
+
     """
     console.h1("-" * 80)
     console.h1("LstmClassifier")
