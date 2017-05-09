@@ -145,24 +145,27 @@ class GloveClassifier(Classifier):
             ys=np.array(true_labels, np.int32) if true_labels is not None else None,
             lengths=lengths)
 
-    def train(self,
+    def train(
+        self,
         input_tokens,
         true_labels,
         num_epochs=None,
         continue_previous=True,
         save_every_n_epochs=5,
         eval_tokens=None,
-        eval_labels=None):
+        eval_labels=None,
+        batch_size=512):
         """
         Args:
-            `raw_inputs` a list of raw tweets. i.e, a list of strings.
+            `input_tokens` a list of tokenized sentences, i.e. a List[List[String]]
             `true_labels` a list of integer labels corresponding to each raw input.
             `num_epochs` number of training epochs to run. If None, train forever.
             `continue_previous` if `True`, load params from latest checkpoint and
                 continue training from there.
-            `save_every_n_epochs`
-            `save_hook` if given, a callable that will be called with parameters
-                (epoch number, step number) whenever a new checkpoint is saved
+            `save_every_n_epochs` save a checkpoint at this interval, and also report evaluation metrics. 
+            `eval_tokens` (optional) inputs for evaluation
+            `eval_labels` (optional) labels for evaluation
+            `batch_size` training batch size
         """
 
         # feed dict for evaluating on the validation set
@@ -201,7 +204,7 @@ class GloveClassifier(Classifier):
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
                     break
 
-                batch = minibatcher.next(256)
+                batch = minibatcher.next(batch_size)
                 train_feed[self._g.train_embeddings] = minibatcher.cur_epoch < 8
                 train_feed[self._g.batch_size]   = len(batch.xs)
                 train_feed[self._g.inputs]       = batch.xs
@@ -215,23 +218,23 @@ class GloveClassifier(Classifier):
                 if minibatcher.is_new_epoch:
                     console.info("\tAverage loss (last {} steps): {:.4f}".format(len(losses), np.mean(losses)))
                     if minibatcher.cur_epoch % save_every_n_epochs == 0:
-                        # don't save because it's massive
-                        """
-                        saved_path = self._g.saver.save(sess, "./ckpts/glove/glove_saved", global_step=self._g.step)
-                        console.log(
-                            console.colors.GREEN + console.colors.BRIGHT
-                            + "{}\tCheckpoint saved to {}".format(datetime.now(), saved_path)
-                            + console.colors.END)
-                        """
+                        # Don't save because it's massive
+                        if False:
+                            saved_path = self._g.saver.save(sess, "./ckpts/glove/glove_saved", global_step=self._g.step)
+                            console.log(
+                                console.colors.GREEN + console.colors.BRIGHT
+                                + "{}\tCheckpoint saved to {}".format(datetime.now(), saved_path)
+                                + console.colors.END)
 
-                        eval_pred = sess.run(self._g.labels_predicted, eval_feed)
-                        train_pred = sess.run(self._g.labels_predicted, train_eval_feed)
-                        train_acc = np.equal(train_pred, train_data.ys).mean()
-                        eval_acc = np.equal(eval_pred, eval_labels).mean()
-                        console.log("train accuracy: {:.5f}".format(train_acc))
-                        console.log("eval  accuracy: {:.5f}".format(eval_acc))
+                        if eval_tokens is not None and eval_feed is not None:
+                            eval_pred = sess.run(self._g.labels_predicted, eval_feed)
+                            train_pred = sess.run(self._g.labels_predicted, train_eval_feed)
+                            train_acc = np.equal(train_pred, train_data.ys).mean()
+                            eval_acc = np.equal(eval_pred, eval_labels).mean()
+                            console.log("train accuracy: {:.5f}".format(train_acc))
+                            console.log("eval  accuracy: {:.5f}".format(eval_acc))
+                # Not a new epoch - print some stuff to report progress
                 else:
-                    # Print some stuff so we know it's making progress
                     label = "Global Step {} (Epoch {})".format(step, minibatcher.cur_epoch)
                     console.progress_bar(label, minibatcher.epoch_progress, 60)
 
