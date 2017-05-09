@@ -1,10 +1,12 @@
+import glob
 import html
 import json
 import nltk
+import os
 import random
 
 from nltk.tokenize import TweetTokenizer
-from utility import Emotion
+from utility import console, Emotion
 
 
 class TweetsDataSource(object):
@@ -33,9 +35,18 @@ class TweetsDataSource(object):
         if 'random_seed' in kwargs:
             random_seed = kwargs['random_seed']
 
+        filenames = []
+        filenames += args
+        if 'file_glob' in kwargs:
+            filenames += glob.glob(kwargs['file_glob'])
+
         self._raw_inputs = []
         emotions = []
-        for filename in args:
+        for filename in filenames:
+            if not os.path.isfile(filename):
+                console.warn("Not a file: " + filename)
+                continue
+
             with open(filename, 'r') as f:
                 lines = f.readlines()
 
@@ -55,6 +66,8 @@ class TweetsDataSource(object):
 
         self._inputs = [TweetsDataSource._tokenizer.tokenize(text) for text in self._raw_inputs]
         num_inputs = len(self._inputs)
+
+        console.info("Initializing data source with " + str(num_inputs) + " tweets")
 
         self._index_emotion = list(set(emotions))
         self._emotion_index = {l: l.value for l in self._index_emotion}
