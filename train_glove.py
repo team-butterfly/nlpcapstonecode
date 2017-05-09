@@ -14,7 +14,8 @@ args = parser.parse_args()
 glove = "glove.dict.200d.pkl"
 
 if not isfile(glove):
-    console.warn("couldn't find glove file", glove,"; goodbye!")
+    console.warn("couldn't find glove file", glove)
+    console.warn("you could download it with wget homes.cs.washington.edu/~brandv2/nlp/" + glove)
     sys.exit(1)
 
 console.info("Will save every {} epochs for {} epochs".format(
