@@ -9,6 +9,7 @@ from nltk.tokenize import TweetTokenizer
 from utility import console, Emotion
 
 
+# e.g. ds = TweetsDataSource(file_glob="data/tweets.v3.*.txt", random_seed=5)
 class TweetsDataSource(object):
 
     _tokenizer = TweetTokenizer()
