@@ -7,7 +7,7 @@ from os.path import isfile
 from utility import console
 
 parser = argparse.ArgumentParser(description="Train and evaluate the GloVe LSTM model")
-parser.add_argument("--save", type=int, nargs="?", default=25, help="Save model every N epochs")
+parser.add_argument("--save", type=int, nargs="?", default=1, help="Save model every N epochs")
 parser.add_argument("--epochs", type=int, nargs="?", default=None, help="Number of epochs")
 args = parser.parse_args()
 
@@ -29,6 +29,7 @@ from classifiers import GloveClassifier
 
 # Load data source
 data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5)
+# data_src = TweetsDataSource(file_glob="data/tweets.v3.part02.txt", random_seed=5)
 
 # Print info about the data distribution and MFC accuracy
 mfc_class = np.argmax(np.bincount(data_src.train_labels))
