@@ -42,7 +42,7 @@ console.info("test mfc", mfc_acc_test)
 console.info("Logdir:", args.logdir)
 
 
-lstm = GloveClassifier("glove.dict.200d.pkl")
+lstm = GloveClassifier(glove)
 lstm.train(
     data_src.train_inputs,
     data_src.train_labels,
