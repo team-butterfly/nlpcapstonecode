@@ -9,6 +9,7 @@ from utility import console
 parser = argparse.ArgumentParser(description="Train and evaluate the GloVe LSTM model")
 parser.add_argument("--save", type=int, nargs="?", default=1, help="Save model every N epochs")
 parser.add_argument("--epochs", type=int, nargs="?", default=None, help="Number of epochs")
+parser.add_argument("--logdir", type=str, required=True, help="Where to save Tensorboard logs")
 args = parser.parse_args()
 
 glove = "glove.dict.200d.pkl"
@@ -29,7 +30,7 @@ from classifiers import GloveClassifier
 
 # Load data source
 data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5)
-# data_src = TweetsDataSource(file_glob="data/tweets.v3.part02.txt", random_seed=5)
+# data_src = TweetsDataSource(file_glob="data/tweets.v3.part0[1-4].txt", random_seed=5)
 
 # Print info about the data distribution and MFC accuracy
 mfc_class = np.argmax(np.bincount(data_src.train_labels))
@@ -38,14 +39,17 @@ mfc_acc_train = np.equal(mfc_class, data_src.train_labels).mean()
 mfc_acc_test  = np.equal(mfc_class, data_src.test_labels).mean()
 console.info("train mfc", mfc_acc_train)
 console.info("test mfc", mfc_acc_test)
+console.info("Logdir:", args.logdir)
+
 
 lstm = GloveClassifier("glove.dict.200d.pkl")
 lstm.train(
     data_src.train_inputs,
     data_src.train_labels,
+    logdir=args.logdir,
     save_every_n_epochs=args.save,
     num_epochs=args.epochs,
     eval_tokens=data_src.test_inputs,
     eval_labels=data_src.test_labels,
     continue_previous=False,
-    batch_size=512)
+    batch_size=256)
