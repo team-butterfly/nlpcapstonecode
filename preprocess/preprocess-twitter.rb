@@ -1,5 +1,4 @@
 # Ruby 2.0
-# Reads stdin: ruby -n preprocess-twitter.rb
 #
 # Script for preprocessing tweets by Romain Paulus
 # with small modifications by Jeffrey Pennington
@@ -30,7 +29,7 @@ def tokenize input
 				result = (["<HASHTAG>"] + hashtag_body.split(/(?=[A-Z])/)).join(" ")
 			end
 			result
-		} 
+		}
 		.gsub(/([!?.]){2,}/){ # Mark punctuation repetitions (eg. "!!!" => "! <REPEAT>")
 			"#{$~[1]} <REPEAT>"
 		}
@@ -44,5 +43,3 @@ def tokenize input
 
 	return input
 end
-
-puts tokenize($_)
