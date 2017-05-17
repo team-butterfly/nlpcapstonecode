@@ -11,3 +11,7 @@ data:
 	for file in `cat data/listing`; do \
 		wget --user team-butterfly --password cse481n $(baseurl)data/$$file -O data/$$file; \
 	done
+
+.PHONY: preprocess
+preprocess:
+	ruby preprocess/preprocess-main.rb data/tweets-preprocessed-v1.txt data/tweets.v3.part*.txt
