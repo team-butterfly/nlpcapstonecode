@@ -48,7 +48,7 @@ class TweetsDataSource(object):
                 console.warn("Not a file: " + filename)
                 continue
 
-            console.info("Parsing " + filename)
+            # console.info("Parsing " + filename)
 
             with open(filename, 'r') as f:
                 lines = f.readlines()
@@ -67,10 +67,10 @@ class TweetsDataSource(object):
             self._raw_inputs += new_inputs
             emotions += new_emotions
 
+        console.info("Initializing data source with " + str(len(self._raw_inputs)) + " tweets...")
+
         self._inputs = [TweetsDataSource._tokenizer.tokenize(text) for text in self._raw_inputs]
         num_inputs = len(self._inputs)
-
-        console.info("Initializing data source with " + str(num_inputs) + " tweets")
 
         self._index_emotion = list(set(emotions))
         self._emotion_index = {l: l.value for l in self._index_emotion}
@@ -91,6 +91,12 @@ class TweetsDataSource(object):
         for i in self._inputs:
             c.update(i)
         return len(c)
+
+    def vocab(self):
+        s = set()
+        for i in self._inputs:
+            s.update(i)
+        return s
 
     @property
     def num_labels(self):
