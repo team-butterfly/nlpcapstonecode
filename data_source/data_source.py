@@ -42,6 +42,7 @@ class TweetsDataSource(object):
             filenames += glob.glob(kwargs['file_glob'])
 
         self._raw_inputs = []
+        self._inputs = []
         emotions = []
         for filename in filenames:
             if not os.path.isfile(filename):
@@ -55,21 +56,30 @@ class TweetsDataSource(object):
 
             new_inputs = []
             new_emotions = []
-            if lines[0].rstrip() == 'v.4/21':
+            if lines[0].rstrip() == 'v.5/16-tok':
                 lines = lines[1:]
                 tweets = [json.loads(line.rstrip()) for line in lines]
                 new_inputs = [TweetsDataSource._clean_text(tweet['text'].strip()) for tweet in tweets]
                 new_emotions = [Emotion[tweet['tag']] for tweet in tweets]
+                self._raw_inputs += new_inputs
+                self._inputs += [text.split() for text in new_inputs]
+            elif lines[0].rstrip() == 'v.4/21':
+                lines = lines[1:]
+                tweets = [json.loads(line.rstrip()) for line in lines]
+                new_inputs = [TweetsDataSource._clean_text(tweet['text'].strip()) for tweet in tweets]
+                new_emotions = [Emotion[tweet['tag']] for tweet in tweets]
+                self._raw_inputs += new_inputs
+                self._inputs += [TweetsDataSource._tokenizer.tokenize(text) for text in new_inputs]
             else:
-                new_inputs = [TweetsDataSource._clean_text(lines[i + 3].rstrip(), True) for i in range(0, len(lines), 5)]
+                new_inputs = [
+                    TweetsDataSource._clean_text(lines[i + 3].rstrip(), True)
+                    for i in range(0, len(lines), 5)]
                 new_emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
+                self._raw_inputs += new_inputs
+                self._inputs += [TweetsDataSource._tokenizer.tokenize(text) for text in new_inputs]
 
-            self._raw_inputs += new_inputs
             emotions += new_emotions
 
-        console.info("Initializing data source with " + str(len(self._raw_inputs)) + " tweets...")
-
-        self._inputs = [TweetsDataSource._tokenizer.tokenize(text) for text in self._raw_inputs]
         num_inputs = len(self._inputs)
 
         self._index_emotion = list(set(emotions))
@@ -81,6 +91,8 @@ class TweetsDataSource(object):
 
         random.seed(random_seed)
         self._test_indexes = sorted(random.sample(range(num_inputs), num_test))
+
+        console.info("Initialized data source with " + str(num_inputs) + " tweets")
 
     def num_tokens(self):
         return sum([len(i) for i in self._inputs])
