@@ -7,7 +7,7 @@ console.log()
 console.h1("Initializing Server")
 
 from classifiers import LstmClassifier
-from tts import TTS
+from tts import IBMTTS as TTS
 
 app = Flask(__name__)
 lstm = LstmClassifier()

@@ -4,7 +4,7 @@ import os
 import sys
 
 import numpy as np
-from keras.layers import Input, Conv2D, MaxPooling2D, BatchNormalization, UpSampling2D, Concatenate, Dropout
+from keras.layers import Input, Conv2D, MaxPooling2D, BatchNormalization, UpSampling2D, Concatenate, Dropout, AveragePooling2D
 from keras.models import Model
 from keras.callbacks import ReduceLROnPlateau
 
@@ -82,8 +82,9 @@ class TransferBot():
 
         content = UpSampling2D((192, 1))(content)
         style = UpSampling2D((1, 192))(style)
+        noise = Input(shape=(192, 192, 1), name='noise')
 
-        combined = Concatenate()([content, style])
+        combined = Concatenate()([content, style, noise])
         # combined = style
         combined = Conv2D(128, (3,3), activation='relu', padding='same')(combined)
         # reconstruction happens here
@@ -93,28 +94,94 @@ class TransferBot():
         combined = Conv2D(16, (3,3), activation='relu', padding='same')(combined)
         output = Conv2D(1, (3,3), activation='relu', padding='same')(combined)
 
-        m = Model(inputs=[styleInput, contentInput], outputs=output)
-        m.compile(loss='mean_squared_error', optimizer='adam')
-        console.log("Model has", m.count_params(), "params")
+        generator = Model(inputs=[styleInput, contentInput, noise], outputs=output)
+        generator.compile(loss='mean_squared_error', optimizer='adam')
+        self.generator = generator;
+        console.log("Generator has", generator.count_params(), "params")
 
-        self.model = m
+        discInput = Input(shape=(None, None, 1), name='discInput')
+        discConv = Conv2D(32, 4, strides=2, activation='relu', padding='same')(discInput)
+        discConv = Conv2D(32, 4, strides=2, activation='relu', padding='same')(discConv)
+        discConv = Conv2D(16, 4, strides=2, activation='relu', padding='same')(discConv)
+        discConv = Conv2D(1, 4, strides=2, activation='relu', padding='same')(discConv)
+        discOpinion = MaxPooling2D((48,48))(discConv)
+
+        discriminator = Model(inputs=discInput, outputs=discOpinion)
+        discriminator.compile(loss='binary_crossentropy', optimizer='adam')
+        discriminator.trainable = False
+
+        self.discriminator = discriminator
+
+        ganInput = [contentInput, styleInput, noise]
+        generatorOutput = generator(ganInput)
+        ganOutput = discriminator(generatorOutput)
+        gan = Model(inputs=ganInput, outputs=ganOutput)
+        gan.compile(loss='binary_crossentropy', optimizer='adam')
+        self.gan = gan
         self.gridSize = 4
 
     def saveWeights(self, path):
-        self.model.save_weights(path, overwrite=True)
+        self.gan.save_weights(path, overwrite=True)
     def loadWeights(self, path):
-        self.model.load_weights(path)
+        self.gan.load_weights(path)
     def train(self, dataPath, epochs, batch):
 
         console.h1("Loading images")
-        vocals, references = loadImages(dataPath)
+        allVocals, allReferences = loadImages(dataPath)
         console.log("Starting model fit")
-        conversion.saveSpectrogram(vocals[0, :, :, 0], "input_output_0.png")
-        conversion.saveSpectrogram(references[0, :, :, 0], "references_0.png")
-        self.model.fit([vocals, references], vocals, batch_size=batch, epochs=epochs)
+
+        while epochs > 0:
+            console.log("Training for", epochs, "epochs on", len(allVocals), "examples")
+            for i in range(0, epochs):
+                batchIndices = np.random.randint(0, allVocals.shape[0], size=batch)
+                vocals = allVocals[batchIndices]
+                references = allReferences[batchIndices]
+                y = allVocals[batchIndices]
+
+                noise = np.random.normal(0, 1, size=[batch, vocals[0].shape[0] // self.gridSize, vocals[0].shape[1] // self.gridSize, 1])
+
+                yFakes = self.generator.predict([vocals, references, noise])
+
+                y = np.concatenate([y, yFakes])
+                z = np.zeros((len(y)))
+                z[:batch] = 0.9
+
+                z = z[:, np.newaxis, np.newaxis, np.newaxis]
+
+                self.discriminator.trainable = True
+                dLoss = self.discriminator.train_on_batch(y, z)
+                noise = np.random.normal(0, 1, size=[batch, vocals[0].shape[0] // self.gridSize, vocals[0].shape[1] // self.gridSize, 1])
+                zGoal = np.ones(batch)
+                zGoal = zGoal[:, np.newaxis, np.newaxis, np.newaxis]
+                self.discriminator.trainable = False
+                gLoss = self.gan.train_on_batch([vocals, references, noise], zGoal)
+                console.info(i, "\tdLoss:", dLoss,"\tgLoss",gLoss)
+
+                # console.bounds(y[0], "real sample")
+                # console.bounds(yFakes[0], "fake sample")
+            # for j in range(0, batch):
+            #     conversion.saveSpectrogram(y[j][:,:,0], str(j) + "_real.png")
+            #     conversion.saveSpectrogram(yFakes[j][:,:,0], str(j) + "_fake.png")
+
+            # self.generator.fit(xTrain, yTrain, batch_size=batch, epochs=epochs, validation_data=(xValid, yValid))
+
+
+            console.notify(str(epochs) + " Epochs Complete!", "Training on", dataPath, "with size", batch)
+            while True:
+                try:
+                    epochs = int(input("How many more epochs should we train for? "))
+                    break
+                except ValueError:
+                    console.warn("Oops, number parse failed. Try again, I guess?")
+            if epochs > 0:
+                save = input("Should we save intermediate weights [y/n]? ")
+                if not save.lower().startswith("n"):
+                    weightPath = ''.join(random.choice(string.digits) for _ in range(16)) + ".h5"
+                    console.log("Saving intermediate weights to", weightPath)
+                    self.saveWeights(weightPath)
         console.log("Training completed")
     def predict(self, style, content):
-        return self.model.predict([style, content])
+        return self.generator.predict([style, content])
     def stylize(self, stylePath, contentPath, outputPath):
         styleAudio, styleSampleRate = conversion.loadAudioFile(stylePath)
         contentAudio, contentSampleRate = conversion.loadAudioFile(contentPath)
