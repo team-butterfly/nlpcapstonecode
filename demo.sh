@@ -1,3 +1,3 @@
 # sass --watch demo/static/sass:demo/static/css &
-python -m demo &
-open -a "Google Chrome" http://localhost:5000
+open -a "Google Chrome" http://localhost:5000 &&
+python -m demo

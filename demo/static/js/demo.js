@@ -44,6 +44,12 @@ window.addEventListener("load", () => {
         }, 250);
 
         classify(userText.value).then((result) => {
+            var newResult = {};
+            for (let key in result) {
+                newResult[key] = parseFloat(result[key]);
+            }
+            console.log(result, newResult);
+            result = newResult;
             ellipses.innerHTML = "";
             clearInterval(progress);
             var results = $("classifier-results");
