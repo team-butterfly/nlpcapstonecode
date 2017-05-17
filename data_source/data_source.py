@@ -48,6 +48,8 @@ class TweetsDataSource(object):
                 console.warn("Not a file: " + filename)
                 continue
 
+            console.info("Parsing " + filename)
+
             with open(filename, 'r') as f:
                 lines = f.readlines()
 
@@ -79,6 +81,16 @@ class TweetsDataSource(object):
 
         random.seed(random_seed)
         self._test_indexes = sorted(random.sample(range(num_inputs), num_test))
+
+    def num_tokens(self):
+        return sum([len(i) for i in self._inputs])
+
+    def vocab_size(self):
+        from collections import Counter
+        c = Counter()
+        for i in self._inputs:
+            c.update(i)
+        return len(c)
 
     @property
     def num_labels(self):
