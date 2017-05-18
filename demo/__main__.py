@@ -15,10 +15,11 @@ lstm = LstmClassifier()
 tts = TTS()
 
 def say(text, emotion):
-    output_path = "/tmp/" + tts.as_file_path(text) + ".wav"
+    output_path = "static/audio/" + tts.as_file_path(text) + ".wav"
     output_path = tts.speak(text, emotion, output_path)
 
-    os.system("ffplay '{}' || play '{}'".format(output_path, output_path, output_path))
+    return output_path
+    # os.system("ffplay '{}' || play '{}'".format(output_path, output_path, output_path))
 
 @app.route("/")
 def main():
@@ -26,11 +27,17 @@ def main():
 
 @app.route("/classify/<text>")
 def classify(text):
-    classifications = lstm.predict_soft([text])[0]
+    tokens, classifications, attention = lstm.predict_soft_with_attention([text])[0]
     console.debug("classifications:", classifications)
     console.debug("best:", np.argmax(classifications),Emotion(np.argmax(classifications)))
-    say(text, Emotion(np.argmax(classifications)))
-    output = { Emotion(i).name : str(classifications[i]) for i in range(len(classifications)) }
+    output_path = say(text, Emotion(np.argmax(classifications)))
+    output_classifications = { Emotion(i).name : str(classifications[i]) for i in range(len(classifications)) }
+    output = {
+        "tokens" : tokens,
+        "classifications" : output_classifications,
+        "attention" : attention,
+        "audio_path" : output_path
+    }
     console.debug("output is ", output)
     return json.dumps(output)
 
