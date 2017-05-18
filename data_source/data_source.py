@@ -27,6 +27,9 @@ class TweetsDataSource(object):
 
         return text
 
+    def tokenize(sent):
+        return TweetsDataSource._tokenizer.tokenize(sent)
+
     def __init__(self, *args, **kwargs):
         pct_test = 0.10
         if 'pct_test' in kwargs:
@@ -69,14 +72,14 @@ class TweetsDataSource(object):
                 new_inputs = [TweetsDataSource._clean_text(tweet['text'].strip()) for tweet in tweets]
                 new_emotions = [Emotion[tweet['tag']] for tweet in tweets]
                 self._raw_inputs += new_inputs
-                self._inputs += [TweetsDataSource._tokenizer.tokenize(text) for text in new_inputs]
+                self._inputs += [TweetsDataSource.tokenize(text) for text in new_inputs]
             else:
                 new_inputs = [
                     TweetsDataSource._clean_text(lines[i + 3].rstrip(), True)
                     for i in range(0, len(lines), 5)]
                 new_emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
                 self._raw_inputs += new_inputs
-                self._inputs += [TweetsDataSource._tokenizer.tokenize(text) for text in new_inputs]
+                self._inputs += [TweetsDataSource.tokenize(text) for text in new_inputs]
 
             emotions += new_emotions
 

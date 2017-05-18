@@ -137,7 +137,10 @@ class IBMTTS(TTS):
             Emotion.SADNESS : "Apology"
         }
     def speak(self, text, emotion, output_path):
-        annotatedText = '<express-as type="' + self.emotionsToIBMTypes[emotion] + '">' + text + '</express-as>'
+        if emotion in self.emotionsToIBMTypes:
+            annotatedText = '<express-as type="' + self.emotionsToIBMTypes[emotion] + '">' + text + '</express-as>'
+        else:
+            annotatedText = text
         params = {
             'text' : annotatedText,
             'voice' : 'en-US_AllisonVoice',
