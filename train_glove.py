@@ -30,7 +30,6 @@ from classifiers import GloveClassifier
 
 # Load data source
 data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5)
-# data_src = TweetsDataSource(file_glob="data/tweets.v3.part0[1-4].txt", random_seed=5)
 
 # Print info about the data distribution and MFC accuracy
 mfc_class = np.argmax(np.bincount(data_src.train_labels))
@@ -41,12 +40,12 @@ console.info("train mfc", mfc_acc_train)
 console.info("test mfc", mfc_acc_test)
 console.info("Logdir:", args.logdir)
 
-
 lstm = GloveClassifier(glove)
 lstm.train(
     data_src.train_inputs,
     data_src.train_labels,
     logdir=args.logdir,
+    initial_embeddings_pkl=glove,
     save_every_n_epochs=args.save,
     num_epochs=args.epochs,
     eval_tokens=data_src.test_inputs,
