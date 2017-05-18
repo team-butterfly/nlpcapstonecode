@@ -3,7 +3,13 @@
 
 require 'json'
 require_relative 'preprocess-twitter'
+require_relative 'preprocess-twitter-mod'
 
+fixed = false
+if ARGV[0] == '--fix'
+    fixed = true
+    ARGV = ARGV.drop(1)
+end
 save_name = ARGV[0]
 File.open(save_name, "w") do |save_file|
     save_file.write("v.5/16-tok\n")
@@ -17,7 +23,11 @@ File.open(save_name, "w") do |save_file|
         lines.drop(1).each do |line|
             line = line.strip
             tweet = JSON.parse(line)
-            tweet["text"] = tokenize(tweet["text"])
+            if fixed
+                tweet["text"] = tokenize2(tweet["text"])
+            else
+                tweet["text"] = tokenize(tweet["text"])
+            end
             save_file.write(tweet.to_json)
             save_file.write("\n")
             save_file.flush
