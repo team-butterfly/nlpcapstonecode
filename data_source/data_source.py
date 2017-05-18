@@ -27,6 +27,9 @@ class TweetsDataSource(object):
 
         return text
 
+    def tokenize(sent):
+        return TweetsDataSource._tokenizer.tokenize(sent)
+
     def __init__(self, *args, **kwargs):
         pct_test = 0.10
         if 'pct_test' in kwargs:
@@ -65,7 +68,7 @@ class TweetsDataSource(object):
             self._raw_inputs += new_inputs
             emotions += new_emotions
 
-        self._inputs = [TweetsDataSource._tokenizer.tokenize(text) for text in self._raw_inputs]
+        self._inputs = [TweetsDataSource.tokenize(text) for text in self._raw_inputs]
         num_inputs = len(self._inputs)
 
         console.info("Initializing data source with " + str(num_inputs) + " tweets")
