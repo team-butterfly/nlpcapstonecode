@@ -5,7 +5,9 @@ import scipy
 import warnings
 import skimage.io as io
 import re
+import requests
 
+import tts.credentials as credentials
 from utility import console, Emotion
 
 class TTS():
@@ -125,3 +127,33 @@ class TTS():
         return new_file_path
     def as_file_path(self, text):
         return re.compile('[^a-z_]+').sub('', text.lower().replace(" ", "_"))
+
+class IBMTTS(TTS):
+    def __init__(self):
+        # load IBM web interface
+        self.emotionsToIBMTypes = {
+            Emotion.JOY : "GoodNews",
+            Emotion.ANGER : "Uncertainty",
+            Emotion.SADNESS : "Apology"
+        }
+    def speak(self, text, emotion, output_path):
+        if emotion in self.emotionsToIBMTypes:
+            annotatedText = '<express-as type="' + self.emotionsToIBMTypes[emotion] + '">' + text + '</express-as>'
+        else:
+            annotatedText = text
+        params = {
+            'text' : annotatedText,
+            'voice' : 'en-US_AllisonVoice',
+            'accept' : 'audio/wav',
+        }
+        console.debug("sending params", params)
+        baseURL = "https://stream.watsonplatform.net/text-to-speech/api/v1/synthesize"
+
+        response = requests.get(baseURL, params=params, auth=(credentials.USERNAME, credentials.PASSWORD), verify=False, stream=True)
+        # query IBM web interface
+
+        with open(output_path, "wb") as output:
+            for data in response.iter_content(2048):
+                output.write(data)
+        console.debug("Wrote to", output_path)
+        return output_path

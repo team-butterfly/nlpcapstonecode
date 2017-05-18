@@ -17,8 +17,8 @@ class Batch():
 
     def __init__(self, xs, ys, lengths):
         assert isinstance(xs, np.ndarray)
-        assert isinstance(ys, np.ndarray)
-        assert isinstance(lengths, np.ndarray)
+        assert isinstance(ys, np.ndarray) or ys is None
+        assert isinstance(lengths, np.ndarray) or lengths is None
         self.xs = xs
         self.ys = ys
         self.lengths = lengths
@@ -55,7 +55,7 @@ class Minibatcher():
         size = min(max_size, self._limit - self._i)
         idxs = np.arange(size) + self._i
         next_i = (self._i + size) % self._limit
-        
+
         xs = self._batch.xs[idxs]
         if pad_per_batch:
             xs = pad_to_max_len(xs)
@@ -73,7 +73,7 @@ class Minibatcher():
 
         return ret
 
-    
+
     @property
     def epoch_progress(self):
         return self._i / self._limit

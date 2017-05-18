@@ -40,7 +40,7 @@ console.info("train mfc", mfc_acc_train)
 console.info("test mfc", mfc_acc_test)
 console.info("Logdir:", args.logdir)
 
-lstm = GloveClassifier()
+lstm = GloveClassifier(glove)
 lstm.train(
     data_src.train_inputs,
     data_src.train_labels,
