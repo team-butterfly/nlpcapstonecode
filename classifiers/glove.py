@@ -394,4 +394,9 @@ class GloveClassifier(Classifier):
             self._g.true_lengths: lengths(tokens)
         }
         [soft_labels, attns] = self._sess.run([self._g.softmax, self._g.a], feed)
-        return list(zip(list_tokens, soft_labels[:, 1:4], attns))
+
+        data = []
+        for i in range(len(list_tokens)):
+            emos = {emo: soft_labels[i][emo.value] for emo in (Emotion.SADNESS, Emotion.ANGER, Emotion.JOY)}
+            data.append((list_tokens[i], emos, attns[i]))
+        return data 

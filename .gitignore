@@ -1,4 +1,11 @@
 __pycache__
+.sass-cache
+.*.swp
 *.pyc
 .DS_Store
-tweets.*.txt
+data
+log
+plots
+ckpts
+tts/credentials.py
+demo/static/audio

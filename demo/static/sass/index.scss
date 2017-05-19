@@ -66,6 +66,7 @@ $purple: #9f56cc;
         border: 2px solid $blue;
         border-radius: 64px;
         padding: 16px 32px;
+        padding-right: 128px;
         font-size: 2em;
         outline: none;
         box-shadow: none;
@@ -472,4 +473,9 @@ hr {
 div.katex-math {
     text-align: center;
     margin: 1em 0;
+}
+#attention {
+    text-align: center;
+    font-size: 1.5rem;
+    margin: 16px;
 }

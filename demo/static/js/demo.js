@@ -44,7 +44,7 @@ window.addEventListener("load", () => {
                     resolve(JSON.parse(this.responseText))
                 }
             };
-            xhr.open("GET", "/classify/" + encodeURIComponent(text), true);
+            xhr.open("GET", "/classify/" + encodeURIComponent(text.toLowerCase()), true);
             xhr.send();
         });
     }
@@ -64,8 +64,9 @@ window.addEventListener("load", () => {
             let bar = document.createElement("span");
             bar.classList.add("bar");
             th.textContent = key;
-            if colors[key] {
+            if (colors[key]) {
                 bar.style.backgroundColor = rgba(colors[key], 1);
+                th.style.color = rgba(colors[key], 1); 
             }
             bar.textContent = value;
             tr.appendChild(th);
@@ -85,7 +86,8 @@ window.addEventListener("load", () => {
     }
 
     var drawAttentionChart = function(tokens, attention, maxClass) {
-        var output = $("attention");
+        var parent = $("attention");
+        parent.innerHTML = "";
         for (let k = 0; k < tokens.length; k++) {
             let span = document.createElement("span");
             span.textContent = tokens[k];
@@ -134,6 +136,7 @@ window.addEventListener("load", () => {
             }
             sorted = sorted.sort((a, b) => b[1] - a[1]);
             h2.textContent = maxClass;
+            h2.style.color = rgba(colors[maxClass], 1); 
             playAudio(audioPath);
             drawBarChart(sorted, result, maxClass);
             drawAttentionChart(tokens, attention, maxClass);
