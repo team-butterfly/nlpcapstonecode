@@ -40,6 +40,7 @@ def tokenize2 input
 		.gsub(/([A-Z]){2,}/){ |word|
 			"#{word.downcase} <allcaps>"
 		}
+		.downcase
 
 	return input
 end
