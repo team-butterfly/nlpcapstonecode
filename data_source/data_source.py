@@ -5,9 +5,14 @@ import nltk
 import os
 import random
 
-from nltk.tokenize import TweetTokenizer
 from utility import console, Emotion
 
+from nltk.tokenize.casual import TweetTokenizer
+from nltk.tokenize.moses import MosesTokenizer
+from nltk.tokenize.repp import ReppTokenizer
+from nltk.tokenize.treebank import TreebankWordTokenizer
+from nltk.tokenize import word_tokenize
+from nltk.tokenize import wordpunct_tokenize
 
 # e.g. ds = TweetsDataSource(file_glob="data/tweets.v3.*.txt", random_seed=5)
 class TweetsDataSource(object):
@@ -44,6 +49,19 @@ class TweetsDataSource(object):
         if 'file_glob' in kwargs:
             filenames += glob.glob(kwargs['file_glob'])
 
+        tokenize = TweetTokenizer().tokenize
+        if 'tokenizer' in kwargs:
+            if kwargs['tokenizer'] == 'wordpunct':
+                tokenize = wordpunct_tokenize
+            elif kwargs['tokenizer'] == 'word':
+                tokenize = word_tokenize
+            elif kwargs['tokenizer'] == 'treebank':
+                tokenize = TreebankWordTokenizer().tokenize
+            elif kwargs['tokenizer'] == 'moses':
+                tokenize = MosesTokenizer().tokenize
+            elif kwargs['tokenizer'] == 'tweet':
+                tokenize = TweetTokenizer().tokenize
+
         self._raw_inputs = []
         self._inputs = []
         emotions = []
@@ -72,14 +90,14 @@ class TweetsDataSource(object):
                 new_inputs = [TweetsDataSource._clean_text(tweet['text'].strip()) for tweet in tweets]
                 new_emotions = [Emotion[tweet['tag']] for tweet in tweets]
                 self._raw_inputs += new_inputs
-                self._inputs += [TweetsDataSource.tokenize(text) for text in new_inputs]
+                self._inputs += [tokenize(text) for text in new_inputs]
             else:
                 new_inputs = [
                     TweetsDataSource._clean_text(lines[i + 3].rstrip(), True)
                     for i in range(0, len(lines), 5)]
                 new_emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
                 self._raw_inputs += new_inputs
-                self._inputs += [TweetsDataSource.tokenize(text) for text in new_inputs]
+                self._inputs += [tokenize(text) for text in new_inputs]
 
             emotions += new_emotions
 

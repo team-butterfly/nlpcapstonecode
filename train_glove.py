@@ -29,7 +29,8 @@ from data_source import TweetsDataSource
 from classifiers import GloveClassifier
 
 # Load data source
-data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5)
+data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt",
+    random_seed=5, args.tokenizer if args.tokenizer is not None else 'tweet')
 
 # Print info about the data distribution and MFC accuracy
 mfc_class = np.argmax(np.bincount(data_src.train_labels))
