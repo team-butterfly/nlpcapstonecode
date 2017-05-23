@@ -7,9 +7,12 @@ from os.path import isfile
 from utility import console
 
 parser = argparse.ArgumentParser(description="Train and evaluate the GloVe LSTM model")
-parser.add_argument("--save", type=int, nargs="?", default=1, help="Save model every N epochs")
-parser.add_argument("--epochs", type=int, nargs="?", default=None, help="Number of epochs")
-parser.add_argument("--logdir", type=str, required=True, help="Where to save Tensorboard logs")
+parser.add_argument("--save_interval", type=int, nargs="?", default=1, help="Save model every N epochs")
+parser.add_argument("--plot_interval", type=int, nargs="?", default=None, help="Plot model every N epochs")
+parser.add_argument("--eval_interval", type=int, nargs="?", default=None, help="Evaluate model every N epochs")
+parser.add_argument("--progress_interval", type=float, nargs="?", default=0.01, help="Progress bar interval (%)")
+parser.add_argument("--num_epochs", type=int, nargs="?", default=None, help="Number of epochs")
+parser.add_argument("--logdir", type=str, required=False, help="Where to save Tensorboard logs")
 args = parser.parse_args()
 
 glove = "glove.dict.200d.pkl"
@@ -45,10 +48,8 @@ lstm = GloveClassifier(glove)
 lstm.train(
     data_src.train_inputs,
     data_src.train_labels,
-    logdir=args.logdir,
-    save_every_n_epochs=args.save,
-    num_epochs=args.epochs,
     eval_tokens=data_src.test_inputs,
     eval_labels=data_src.test_labels,
     continue_previous=False,
-    batch_size=256)
+    batch_size=256,
+    **vars(args))

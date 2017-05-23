@@ -234,10 +234,13 @@ class GloveClassifier(Classifier):
         self,
         input_tokens,
         true_labels,
-        logdir,
+        logdir=None,
         num_epochs=None,
-        continue_previous=True,
-        save_every_n_epochs=1,
+        continue_previous=False,
+        save_interval=1,
+        plot_interval=None,
+        eval_interval=None,
+        progress_interval=0.01,
         eval_tokens=None,
         eval_labels=None,
         batch_size=128):
@@ -249,7 +252,18 @@ class GloveClassifier(Classifier):
             `num_epochs` number of training epochs to run. If None, train forever.
             `continue_previous` if `True`, load params from latest checkpoint and
                 continue training from there.
-            `save_every_n_epochs` save a checkpoint at this interval, and also report evaluation metrics.
+            `save_interval`: positive integer (default: 1), or None
+                if not None, save a checkpoint and report evaluation metrics
+                every save_interval epochs
+            `plot_interval`: positive integer, or None (default)
+                if not None, plots sample attentions every plot_interval epochs
+            `eval_interval`: positive integer, or None (default)
+                if not None, write eval accuracy to console every eval_interval
+                epochs
+            `progress_interval`: float between 0 and 1 (default: 0.01), or None
+                if not None, write a progress bar to the console at most
+                1/progress_interval times per epoch (e.g. if set to 0.1, should
+                display ~10 progress bars)
             `eval_tokens` (optional) inputs for evaluation
             `eval_labels` (optional) labels for evaluation
             `batch_size` training batch size
@@ -305,7 +319,7 @@ class GloveClassifier(Classifier):
         }
 
         with tf.Session(graph=self._g.root) as sess:
-            if False:
+            if continue_previous:
                 try:
                     self._restore(sess)
                 except Exception as e:
@@ -313,7 +327,11 @@ class GloveClassifier(Classifier):
                     console.warn("The model will be initialized from scratch.")
             sess.run(self._g.init_op)
 
-            writer = tf.summary.FileWriter(logdir)
+            if logdir is not None:
+                writer = tf.summary.FileWriter(logdir)
+
+            if progress_interval is not None:
+                next_progress = progress_interval
 
             while True:
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
@@ -327,14 +345,15 @@ class GloveClassifier(Classifier):
 
                 [_, cur_loss, step] = sess.run([self._g.train_op, self._g.loss, self._g.step], train_feed)
 
-                if step % 100 == 0 or minibatcher.is_new_epoch:
+                if logdir is not None and (step % 100 == 0 or minibatcher.is_new_epoch):
                     [summary] = sess.run([self._g.merged], eval_feed)
                     writer.add_summary(summary, step)
 
                 # At end of each epoch, maybe save and report some metrics
                 if minibatcher.is_new_epoch:
                     console.info("")
-                    if minibatcher.cur_epoch % save_every_n_epochs == 0:
+
+                    if save_interval is not None and minibatcher.cur_epoch % save_interval == 0:
                         saved_path = self._g.saver.save(sess, "ckpts/glove/noattn", global_step=self._g.step, write_meta_graph=False)
                         console.log(
                             console.colors.GREEN + console.colors.BRIGHT
@@ -342,7 +361,7 @@ class GloveClassifier(Classifier):
                             + console.colors.END)
 
                     # Plot sample attentions.
-                    if False:
+                    if plot_interval is not None and minibatcher.cur_epoch % plot_interval == 0:
                         [attns, attn_preds] = sess.run([self._g.a, self._g.labels_predicted], plot_feed)
                         for i in range(len(plot_words)):
                             em = Emotion(plot_labels[i]) # The true label
@@ -364,10 +383,17 @@ class GloveClassifier(Classifier):
                             fname_obj = fname + ".json"
                             json.dump(obj, open(fname_obj, "w"))
                             console.info("saved JSON to", fname_obj)
+
+                    if eval_interval is not None and minibatcher.cur_epoch % eval_interval == 0:
+                        eval_pred = sess.run(self._g.labels_predicted, eval_feed)
+                        eval_acc = np.equal(eval_pred, eval_labels).mean()
+                        console.log("eval accuracy: {:.5f}".format(eval_acc))
+
                 # Not a new epoch - print some stuff to report progress
-                else:
+                else if progress_interval is not None and minibatcher.epoch_progress >= next_progress:
                     label = "Global Step {} (Epoch {})".format(step, minibatcher.cur_epoch)
                     console.progress_bar(label, minibatcher.epoch_progress, 60)
+                    next_progress += progress_interval
 
 
     def predict(self, list_tokens):
