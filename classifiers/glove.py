@@ -206,7 +206,11 @@ class GloveClassifier(Classifier):
             self._glove["embeddings"])
         console.info("Glove embedding shape:", self._glove["embeddings"].shape)
         self._sess = tf.Session(graph=self._g.root)
-        self._restore(self._sess)
+        try:
+            self._restore(self._sess)
+        except Exception as e:
+            console.warn("Failed to restore from previous checkpoint:", e)
+            console.warn("The model will be initialized from scratch.")
 
     def _restore(self, session):
         latest_ckpt = tf.train.latest_checkpoint("./ckpts/glove")
@@ -331,7 +335,7 @@ class GloveClassifier(Classifier):
                 writer = tf.summary.FileWriter(logdir)
 
             if progress_interval is not None:
-                next_progress = progress_interval
+                next_progress = 0.0
 
             while True:
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
@@ -352,6 +356,9 @@ class GloveClassifier(Classifier):
                 # At end of each epoch, maybe save and report some metrics
                 if minibatcher.is_new_epoch:
                     console.info("")
+
+                    if progress_interval is not None:
+                        next_progress = 0.0
 
                     if save_interval is not None and minibatcher.cur_epoch % save_interval == 0:
                         saved_path = self._g.saver.save(sess, "ckpts/glove/noattn", global_step=self._g.step, write_meta_graph=False)
@@ -390,7 +397,7 @@ class GloveClassifier(Classifier):
                         console.log("eval accuracy: {:.5f}".format(eval_acc))
 
                 # Not a new epoch - print some stuff to report progress
-                else if progress_interval is not None and minibatcher.epoch_progress >= next_progress:
+                elif progress_interval is not None and minibatcher.epoch_progress >= next_progress:
                     label = "Global Step {} (Epoch {})".format(step, minibatcher.cur_epoch)
                     console.progress_bar(label, minibatcher.epoch_progress, 60)
                     next_progress += progress_interval
