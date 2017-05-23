@@ -29,7 +29,7 @@ def plot_attention(sent, attn, rgb, title, path):
     w, max_w = 0, 312
     bbox = {"fc": rgba, "ec": (0, 0, 0, 0), "boxstyle": "round"} # Word bounding box
     for s, a in zip(sent, attn):
-        rgba[3] = (a - lo) / (hi - lo) 
+        rgba[3] = (a - lo) / (hi - lo)
         text = ax.text(0, 0.9, s, bbox=bbox, transform=t, size=12, fontname="Monospace")
         text.draw(renderer)
         ex = text.get_window_extent()
@@ -47,7 +47,7 @@ def plot_attention(sent, attn, rgb, title, path):
 
 def xavier(size_in, size_out):
     d = np.sqrt(6 / (size_in + size_out))
-    return tf.random_uniform((size_in, size_out), minval=-d, maxval=d) 
+    return tf.random_uniform((size_in, size_out), minval=-d, maxval=d)
 
 
 class _GloveGraph():
@@ -90,7 +90,7 @@ class _GloveGraph():
 
             # if self.use_dropout, then this is keep_prob, and otherwise it is 1.0
             self.keep_prob_conditional = tf.where(
-                self.use_dropout, 
+                self.use_dropout,
                 self.keep_prob,
                 tf.constant(1.0))
 
@@ -99,7 +99,7 @@ class _GloveGraph():
                     tf.contrib.rnn.LSTMCell(size, state_is_tuple=True),
                     input_keep_prob=self.keep_prob_conditional,
                     output_keep_prob=self.keep_prob_conditional)
-            
+
             # Bi-LSTM here
             self.cell_fw = make_cell(self.HIDDEN_SIZE)
             self.cell_bw = make_cell(self.HIDDEN_SIZE)
@@ -127,7 +127,7 @@ class _GloveGraph():
             def dot(a, b):
                 return tf.reduce_sum(a * b, axis=2)
 
-            self.o = final_fw.h + final_bw.h 
+            self.o = final_fw.h + final_bw.h
 
             mask = tf.sequence_mask(self.true_lengths)
             float_mask = tf.cast(mask[:, :, tf.newaxis], tf.float32)
@@ -184,7 +184,7 @@ class _GloveGraph():
 
 
 class GloveClassifier(Classifier):
-    
+
     def __init__(self, vocab_pkl):
         """
         Args:
@@ -249,7 +249,7 @@ class GloveClassifier(Classifier):
             `num_epochs` number of training epochs to run. If None, train forever.
             `continue_previous` if `True`, load params from latest checkpoint and
                 continue training from there.
-            `save_every_n_epochs` save a checkpoint at this interval, and also report evaluation metrics. 
+            `save_every_n_epochs` save a checkpoint at this interval, and also report evaluation metrics.
             `eval_tokens` (optional) inputs for evaluation
             `eval_labels` (optional) labels for evaluation
             `batch_size` training batch size
@@ -267,7 +267,7 @@ class GloveClassifier(Classifier):
         # feed dict for training steps
         train_feed = {
             self._g.use_dropout: True,
-            self._g.train_embeddings: True 
+            self._g.train_embeddings: True
         }
 
         # feed dict for evaluating on the validation set
@@ -293,7 +293,7 @@ class GloveClassifier(Classifier):
         plot_words = [unwordids(wordids) for wordids in plot_inputs]
         plot_colors = {
             Emotion.ANGER:   (1.000, 0.129, 0.345), # Red
-			Emotion.SADNESS: (0.231, 0.639, 0.988), # Blue
+            Emotion.SADNESS: (0.231, 0.639, 0.988), # Blue
             Emotion.JOY:     (0.671, 0.847, 0) # Light green
         }
 
@@ -350,11 +350,11 @@ class GloveClassifier(Classifier):
                             title = "True label '{}', Predicted '{}'".format(em.name, em_pred.name)
                             fname = "plots/attn/epoch{:02d}_{:02d}".format(minibatcher.cur_epoch-1, i)
                             fname_plot = fname + ".png"
-                            
+
                             attn_clip = attns[i][:len(plot_words[i])].tolist()
                             plot_attention(plot_words[i], attn_clip, plot_colors[em], title, fname_plot)
                             console.info("Saved plot to", fname_plot)
-                            
+
                             obj = {
                                 "words": plot_words[i],
                                 "attention": attn_clip,
@@ -399,4 +399,4 @@ class GloveClassifier(Classifier):
         for i in range(len(list_tokens)):
             emos = {emo: soft_labels[i][emo.value] for emo in (Emotion.SADNESS, Emotion.ANGER, Emotion.JOY)}
             data.append((list_tokens[i], emos, attns[i]))
-        return data 
+        return data
