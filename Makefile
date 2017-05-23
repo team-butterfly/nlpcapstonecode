@@ -15,3 +15,4 @@ data:
 .PHONY: preprocess
 preprocess:
 	ruby preprocess/preprocess-main.rb data/tweets-preprocessed-v1.txt data/tweets.v3.part*.txt
+	ruby preprocess/preprocess-main.rb --fix data/tweets-preprocessed-v2.txt data/tweets.v3.part*.txt

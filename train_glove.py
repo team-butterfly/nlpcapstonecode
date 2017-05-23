@@ -46,7 +46,6 @@ lstm.train(
     data_src.train_inputs,
     data_src.train_labels,
     logdir=args.logdir,
-    initial_embeddings_pkl=glove,
     save_every_n_epochs=args.save,
     num_epochs=args.epochs,
     eval_tokens=data_src.test_inputs,

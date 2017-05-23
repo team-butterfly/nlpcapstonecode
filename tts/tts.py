@@ -144,7 +144,7 @@ class IBMTTS(TTS):
         params = {
             'text' : annotatedText,
             'voice' : 'en-US_AllisonVoice',
-            'accept' : 'audio/wav',
+            'accept' : 'audio/ogg',
         }
         console.debug("sending params", params)
         baseURL = "https://stream.watsonplatform.net/text-to-speech/api/v1/synthesize"
