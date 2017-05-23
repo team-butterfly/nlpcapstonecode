@@ -4,8 +4,9 @@ import json
 import nltk
 import os
 import random
+import numpy as np
 
-from nltk.tokenize import TweetTokenizer
+from nltk.tokenize import TweetTokenizer, word_tokenize
 from utility import console, Emotion
 
 
@@ -28,7 +29,8 @@ class TweetsDataSource(object):
         return text
 
     def tokenize(sent):
-        return TweetsDataSource._tokenizer.tokenize(sent)
+        # return TweetsDataSource._tokenizer.tokenize(sent)
+        return word_tokenize(sent)
 
     def __init__(self, *args, **kwargs):
         pct_test = 0.10
@@ -83,17 +85,20 @@ class TweetsDataSource(object):
 
             emotions += new_emotions
 
+        self._inputs = np.array(self._inputs)
+
         num_inputs = len(self._inputs)
 
         self._index_emotion = list(set(emotions))
         self._emotion_index = {l: l.value for l in self._index_emotion}
         self._num_labels = len(self._index_emotion)
-        self._labels = [self._emotion_index[emotion] for emotion in emotions]
+        self._labels = np.array([self._emotion_index[emotion] for emotion in emotions])
 
         num_test = int(round(len(self._inputs) * pct_test))
 
         random.seed(random_seed)
-        self._test_indexes = sorted(random.sample(range(num_inputs), num_test))
+        # self._test_indexes = sorted(random.sample(range(num_inputs), num_test))
+        self._test_indexes = np.less(np.random.RandomState(random_seed).rand(num_inputs), pct_test)
 
         console.info("Initialized data source with " + str(num_inputs) + " tweets")
 
@@ -119,27 +124,33 @@ class TweetsDataSource(object):
 
     @property
     def train_inputs(self):
-        return [s for i, s in enumerate(self._inputs) if i not in self._test_indexes]
+        # return [s for i, s in enumerate(self._inputs) if i not in self._test_indexes]
+        return self._inputs[~self._test_indexes]
 
     @property
     def train_raw_inputs(self):
-        return [s for i, s in enumerate(self._raw_inputs) if i not in self._test_indexes]
+        # return [s for i, s in enumerate(self._raw_inputs) if i not in self._test_indexes]
+        return self._raw_inputs[~self._test_indexes]
 
     @property
     def test_inputs(self):
-        return [self._inputs[i] for i in self._test_indexes]
+        # return [self._inputs[i] for i in self._test_indexes]
+        return self._inputs[self._test_indexes]
 
     @property
     def test_raw_inputs(self):
-        return [self._raw_inputs[i] for i in self._test_indexes]
+        # return [self._raw_inputs[i] for i in self._test_indexes]
+        return self._raw_inputs[self._test_indexes]
 
     @property
     def train_labels(self):
-        return [s for i, s in enumerate(self._labels) if i not in self._test_indexes]
+        # return [s for i, s in enumerate(self._labels) if i not in self._test_indexes]
+        return self._labels[~self._test_indexes]
 
     @property
     def test_labels(self):
-        return [self._labels[i] for i in self._test_indexes]
+        # return [self._labels[i] for i in self._test_indexes]
+        return self._labels[self._test_indexes]
 
     def decode_labels(self, labels):
         return [self._index_emotion[i].name for i in labels]

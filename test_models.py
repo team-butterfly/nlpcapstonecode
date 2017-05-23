@@ -85,10 +85,8 @@ if __name__ == "__main__":
     unigram.train(tweets.train_inputs, tweets.train_labels, max_epochs=1000)
     assess_classifier(unigram, tweets)
     
-    """
     console.h1("EmoLexBowClassifier")
     emolex = EmoLexBowClassifier("data/emolex/emolex.txt")
     emolex.train(tweets.train_inputs, tweets.train_labels)
     assess_classifier(emolex, tweets)
-    """
 

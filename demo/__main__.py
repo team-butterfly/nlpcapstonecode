@@ -13,7 +13,7 @@ from classifiers import GloveClassifier as Classifier
 from tts import IBMTTS as TTS
 
 app = Flask(__name__)
-lstm = Classifier("glove.dict.200d.pkl")
+lstm = Classifier()
 tts = TTS()
 
 def say(text, emotion):

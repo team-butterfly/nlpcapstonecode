@@ -11,7 +11,7 @@ def pad_to_max_len(xs):
     return ret
 
 def lengths(xs):
-    return np.fromiter((len(x) for x in xs), count=len(xs), dtype=np.int)
+    return np.fromiter(map(len, xs), dtype=np.int, count=len(xs))
 
 class Batch():
 

@@ -1,9 +1,20 @@
 """
-Defines some useful operations for strings/word counting
+Defines some useful operations for strings/vocabularies
 """
 from enum import Enum
 from collections import Counter
 import numpy as np
+
+def read_vocab(fn):
+    with open(fn, "r") as f:
+        lines = f.readlines()
+        index_word = np.empty(len(lines), dtype="<U64")
+        word_index = {}
+        for i, line in enumerate(lines):
+            word = line[:-1]
+            index_word[i] = word
+            word_index[word] = i
+        return index_word, word_index
 
 class StringStore():
     """
