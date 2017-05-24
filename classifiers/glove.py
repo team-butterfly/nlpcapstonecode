@@ -6,6 +6,7 @@ from collections import namedtuple
 from os.path import join as pjoin
 from os.path import isdir 
 from os import mkdir
+from pprint import pformat
 import json
 import pickle
 import numpy as np
@@ -33,7 +34,7 @@ def plot_attention(sent, attn, rgb, title, path):
     w, max_w = 0, 312
     bbox = {"fc": rgba, "ec": (0, 0, 0, 0), "boxstyle": "round"} # Word bounding box
     for s, a in zip(sent, attn):
-        rgba[3] = (a - lo) / (hi - lo) 
+        rgba[3] = (a - lo) / (hi - lo)
         text = ax.text(0, 0.9, s, bbox=bbox, transform=t, size=12, fontname="Monospace")
         text.draw(renderer)
         ex = text.get_window_extent()
@@ -51,7 +52,7 @@ def plot_attention(sent, attn, rgb, title, path):
 
 def xavier(size_in, size_out):
     d = np.sqrt(6 / (size_in + size_out))
-    return tf.random_uniform((size_in, size_out), minval=-d, maxval=d) 
+    return tf.random_uniform((size_in, size_out), minval=-d, maxval=d)
 
 
 class HParams():
@@ -67,8 +68,7 @@ class HParams():
         self.batch_size = 128
  
     def __str__(self):
-        items = sorted([k + ": " + str(v) for k, v in self.__dict__.items()])
-        return "\n".join(items)
+        return pformat(self.__dict__) 
 
 
 class _GloveGraph():
@@ -281,12 +281,18 @@ class GloveClassifier(Classifier):
 class GloveTraining():
 
     def __init__(self, name, hparams):
+        """
+        Prepares a training session by making the log/checkpoint directories and restoring the model.
+        * Log dir:        log/glove/<name>
+        * Checkpoint dir: ckpts/glove/<name>
+        * Checkpoint file ckpts/glove/<name>/<name>
+        """
         self.hp = hparams
         try:
             self.logdir = pjoin("log", "glove", name)
             ckpt_dir = pjoin("ckpts", "glove", name)
-            console.log("Trying logdir", self.logdir)
-            console.log("Trying checkpoint dir", ckpt_dir)
+            console.log("Making logdir", self.logdir)
+            console.log("Making checkpoint dir", ckpt_dir)
             mkdir(self.logdir)
             mkdir(ckpt_dir)
             self.ckpt_file = pjoin(ckpt_dir, name)
@@ -311,7 +317,7 @@ class GloveTraining():
         wordids = np.zeros(len(input_tokens), dtype=object)
         for i, sentence in enumerate(input_tokens):
             wordids[i] = np.fromiter((lookup(w) for w in sentence), dtype=np.int, count=len(sentence))
-        console.info("GloveTraining: found {} OOV words ({:.2f}%)".format(oov, oov/tot))
+        console.info("GloveTraining: found {} OOV words ({:.2f}%)".format(oov, oov / tot * 100.0))
         return wordids
 
     def _unwordids(ids):
@@ -322,13 +328,26 @@ class GloveTraining():
         data_source,
         *,
         num_epochs=None,
-        save_every_n_epochs=1):
+        save_interval=1,
+        plot_interval=None,
+        eval_interval=None,
+        progress_interval=0.01):
         """
         Args:
             `data_source` a DataSource implementation
             `num_epochs` number of training epochs to run. If None, train forever.
-            `save_every_n_epochs` save a checkpoint at this interval, and also report evaluation metrics. 
-            `batch_size` training batch size
+            `save_interval`: positive integer (default: 1), or None
+                if not None, save a checkpoint and report evaluation metrics
+                every save_interval epochs
+            `plot_interval`: positive integer, or None (default)
+                if not None, plots sample attentions every plot_interval epochs
+            `eval_interval`: positive integer, or None (default)
+                if not None, write eval accuracy to console every eval_interval
+                epochs
+            `progress_interval`: float between 0 and 1 (default: 0.01), or None
+                if not None, write a progress bar to the console at most
+                1/progress_interval times per epoch (e.g. if set to 0.1, should
+                display ~10 progress bars)
         """
 
         ds = data_source
@@ -347,7 +366,7 @@ class GloveTraining():
         # Feed dict for training steps
         train_feed = {
             self._g.use_dropout: True,
-            self._g.train_embeddings: True 
+            self._g.train_embeddings: True
         }
 
         # Feed dict for evaluating on the validation set
@@ -360,7 +379,7 @@ class GloveTraining():
 
         minibatcher = Minibatcher(Batch(train_data, true_labels, lengths(train_data)))
 
-        if PLOTTING:
+        if plot_interval is not None:
             # Choose some stratified sample of the evaluation data to visualize attention weights.
             SAMPLES_PER_CLASS = 4
             rand = np.random.RandomState(12) # Use fixed seed for reproducibility.
@@ -381,10 +400,12 @@ class GloveTraining():
             plot_feed = {
                 self._g.batch_size:   len(plot_inputs),
                 self._g.inputs:       pad_to_max_len(plot_inputs),
-                self._g.labels:       plot_labels,
-                self._g.true_lengths: lengths(plot_inputs)
+                self._g.true_lengths: lengths(plot_inputs),
+                self._g.true_labels:  plot_labels
             }
-        # end if PLOTTING
+
+        if progress_interval is not None:
+            next_progress = 0.0    
 
         with tf.Session(graph=self._g.root) as sess:
             sess.run(self._g.init_op)
@@ -407,16 +428,19 @@ class GloveTraining():
 
                 [_, cur_loss, step] = sess.run([self._g.train_op, self._g.loss, self._g.step], train_feed)
 
-                if LOGGING and (step % 100 == 0 or minibatcher.is_new_epoch):
-                    [summary] = sess.run([self._g.merged], eval_feed)
+                # Log validation accuracy to Tensorboard file
+                if step > 0 and step % 100 == 0:
+                    summary = sess.run(self._g.merged, eval_feed)
                     writer.add_summary(summary, step)
 
                 # At end of each epoch, maybe save and report some metrics
                 if minibatcher.is_new_epoch:
                     console.info("")
-                    valid_acc = np.equal(sess.run(self._g.labels_predicted, eval_feed), eval_labels).mean()
-                    console.info("Validation accuracy:", valid_acc)
-                    if SAVING and (minibatcher.cur_epoch % save_every_n_epochs == 0):
+
+                    if progress_interval is not None:
+                        next_progress = 0.0    
+
+                    if save_interval is not None and minibatcher.cur_epoch % save_interval == 0:
                         saved_path = self._g.saver.save(sess, self.ckpt_file, global_step=self._g.step, write_meta_graph=True)
                         console.log(
                             console.colors.GREEN + console.colors.BRIGHT
@@ -424,7 +448,7 @@ class GloveTraining():
                             + console.colors.END)
 
                     # Plot sample attentions.
-                    if PLOTTING:
+                    if plot_interval is not None and minibatcher.cur_epoch % plot_interval == 0:
                         [attns, attn_preds] = sess.run([self._g.a, self._g.labels_predicted], plot_feed)
                         for i in range(len(plot_words)):
                             em = Emotion(plot_labels[i]) # The true label
@@ -432,11 +456,11 @@ class GloveTraining():
                             title = "True label '{}', Predicted '{}'".format(em.name, em_pred.name)
                             fname = "plots/attn/epoch{:02d}_{:02d}".format(minibatcher.cur_epoch-1, i)
                             fname_plot = fname + ".png"
-                            
+
                             attn_clip = attns[i][:len(plot_words[i])].tolist()
                             plot_attention(plot_words[i], attn_clip, plot_colors[em], title, fname_plot)
                             console.info("Saved plot to", fname_plot)
-                            
+
                             obj = {
                                 "words": plot_words[i],
                                 "attention": attn_clip,
@@ -446,9 +470,14 @@ class GloveTraining():
                             fname_obj = fname + ".json"
                             json.dump(obj, open(fname_obj, "w"))
                             console.info("saved JSON to", fname_obj)
-                    # end if PLOTTING
-                # end if minibatcher.is_new_epoch
+
+                    if eval_interval is not None and minibatcher.cur_epoch % eval_interval == 0:
+                        eval_pred = sess.run(self._g.labels_predicted, eval_feed)
+                        eval_acc = np.equal(eval_pred, eval_labels).mean()
+                        console.log("eval accuracy: {:.5f}".format(eval_acc))
+
                 # Not a new epoch - print some stuff to report progress
-                else:
+                elif progress_interval is not None and minibatcher.epoch_progress >= next_progress:
                     label = "Global Step {} (Epoch {})".format(step, minibatcher.cur_epoch)
                     console.progress_bar(label, minibatcher.epoch_progress, 60)
+                    next_progress += progress_interval
