@@ -165,13 +165,16 @@ class _GloveGraph():
 
             self.x = self.x / tf.norm(self.x, axis=1, keep_dims=True)
 
-            self.w = tf.Variable(xavier(hp.hidden_size, self.NUM_LABELS), name="dense_weights")
+            self.w = tf.Variable(xavier(hp.hidden_size*2, self.NUM_LABELS), name="dense_weights")
             self.b = tf.Variable(tf.zeros(self.NUM_LABELS), name="dense_biases")
 
-            # self.logits = tf.nn.xw_plus_b(self.x, self.w, self.b)
-            self.logits = tf.nn.xw_plus_b(self.concat_final_states,
-                tf.Variable(xavier(hp.hidden_size*2, self.NUM_LABELS)),
-                tf.Variable(tf.zeros(self.NUM_LABELS)))
+            # Use these logits to enable attention:
+            self.logits = tf.nn.xw_plus_b(self.x, self.w, self.b)
+            
+            # Use these logits to bypass attention:
+            # self.logits = tf.nn.xw_plus_b(self.concat_final_states,
+            #     tf.Variable(xavier(hp.hidden_size*2, self.NUM_LABELS)),
+            #     tf.Variable(tf.zeros(self.NUM_LABELS)))
             self.softmax = tf.nn.softmax(self.logits)
 
             # Must cast tf.argmax to int32 because it returns int64
