@@ -16,10 +16,11 @@ parser.add_argument("--tokenizer", type=str, required=False, help="Tokenize func
 args = parser.parse_args()
 
 console.info("Run name:", args.name)
-console.info(
-    "Will save every {} epochs for {} epochs".format(
-    args.save_interval,
-    args.num_epochs if args.num_epochs is not None else "unlimited"))
+if args.save_interval is not None:
+	console.info(
+		"Will save every {} epochs for {} epochs".format(
+		args.save_interval,
+		args.num_epochs if args.num_epochs is not None else "unlimited"))
 
 import numpy as np
 from utility import console
@@ -32,7 +33,8 @@ console.info("HParams:\n", hparams)
 training = GloveTraining(args.name, hparams)
 
 # Load data source
-data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5)
+data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt",
+	random_seed=5, tokenizer=args.tokenizer if args.tokenizer is not None else 'tweet')
 
 # Print info about the data distribution and MFC accuracy
 mfc_class = np.argmax(np.bincount(data_src.train_labels))
@@ -42,10 +44,6 @@ mfc_acc_test  = np.equal(mfc_class, data_src.test_labels).mean()
 console.info("Train mfc:", mfc_acc_train)
 console.info("Test mfc:", mfc_acc_test)
 
-training.run(
-    data_src,
-    save_interval=args.save_interval,
-    plot_interval=args.plot_interval,
-    eval_interval=args.eval_interval,
-    progress_interval=args.progress_interval,
-    num_epochs=args.num_epochs)
+del args.name
+del args.tokenizer
+training.run(data_src, **vars(args))

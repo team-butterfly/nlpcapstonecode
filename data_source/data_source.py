@@ -6,9 +6,14 @@ import os
 import random
 import numpy as np
 
-from nltk.tokenize import TweetTokenizer, word_tokenize
 from utility import console, Emotion
 
+from nltk.tokenize.casual import TweetTokenizer
+from nltk.tokenize.moses import MosesTokenizer
+from nltk.tokenize.repp import ReppTokenizer
+from nltk.tokenize.treebank import TreebankWordTokenizer
+from nltk.tokenize import word_tokenize
+from nltk.tokenize import wordpunct_tokenize
 
 # e.g. ds = TweetsDataSource(file_glob="data/tweets.v3.*.txt", random_seed=5)
 class TweetsDataSource(object):
@@ -29,8 +34,7 @@ class TweetsDataSource(object):
         return text
 
     def tokenize(sent):
-        # return TweetsDataSource._tokenizer.tokenize(sent)
-        return word_tokenize(sent)
+        return TweetsDataSource._tokenizer.tokenize(sent)
 
     def __init__(self, *args, **kwargs):
         pct_test = 0.10
@@ -45,6 +49,19 @@ class TweetsDataSource(object):
         filenames += args
         if 'file_glob' in kwargs:
             filenames += glob.glob(kwargs['file_glob'])
+
+        tokenize = TweetTokenizer().tokenize
+        if 'tokenizer' in kwargs:
+            if kwargs['tokenizer'] == 'wordpunct':
+                tokenize = wordpunct_tokenize
+            elif kwargs['tokenizer'] == 'word':
+                tokenize = word_tokenize
+            elif kwargs['tokenizer'] == 'treebank':
+                tokenize = TreebankWordTokenizer().tokenize
+            elif kwargs['tokenizer'] == 'moses':
+                tokenize = MosesTokenizer().tokenize
+            elif kwargs['tokenizer'] == 'tweet':
+                tokenize = TweetTokenizer().tokenize
 
         self._raw_inputs = []
         self._inputs = []
@@ -74,31 +91,33 @@ class TweetsDataSource(object):
                 new_inputs = [TweetsDataSource._clean_text(tweet['text'].strip()) for tweet in tweets]
                 new_emotions = [Emotion[tweet['tag']] for tweet in tweets]
                 self._raw_inputs += new_inputs
-                self._inputs += [TweetsDataSource.tokenize(text) for text in new_inputs]
+                self._inputs += [tokenize(text) for text in new_inputs]
             else:
                 new_inputs = [
                     TweetsDataSource._clean_text(lines[i + 3].rstrip(), True)
                     for i in range(0, len(lines), 5)]
                 new_emotions = [Emotion[lines[i + 2].rstrip()] for i in range(0, len(lines), 5)]
                 self._raw_inputs += new_inputs
-                self._inputs += [TweetsDataSource.tokenize(text) for text in new_inputs]
+                self._inputs += [tokenize(text) for text in new_inputs]
 
             emotions += new_emotions
-
-        self._inputs = np.array(self._inputs)
 
         num_inputs = len(self._inputs)
 
         self._index_emotion = list(set(emotions))
         self._emotion_index = {l: l.value for l in self._index_emotion}
         self._num_labels = len(self._index_emotion)
+        # Use numpy arrays for faster indexing
         self._labels = np.array([self._emotion_index[emotion] for emotion in emotions])
+        self._inputs = np.array(self._inputs)
 
         num_test = int(round(len(self._inputs) * pct_test))
 
         random.seed(random_seed)
-        # self._test_indexes = sorted(random.sample(range(num_inputs), num_test))
-        self._test_indexes = np.less(np.random.RandomState(random_seed).rand(num_inputs), pct_test)
+        self._test_indexes = sorted(random.sample(range(num_inputs), num_test))
+
+        self._test_mask = np.zeros(num_inputs, dtype=np.bool)
+        self._test_mask[self._test_indexes] = True
 
         console.info("Initialized data source with " + str(num_inputs) + " tweets")
 
@@ -124,33 +143,27 @@ class TweetsDataSource(object):
 
     @property
     def train_inputs(self):
-        # return [s for i, s in enumerate(self._inputs) if i not in self._test_indexes]
-        return self._inputs[~self._test_indexes]
+        return self._inputs[~self._test_mask]
 
     @property
     def train_raw_inputs(self):
-        # return [s for i, s in enumerate(self._raw_inputs) if i not in self._test_indexes]
-        return self._raw_inputs[~self._test_indexes]
+        return self._raw_inputs[~self._test_mask]
 
     @property
     def test_inputs(self):
-        # return [self._inputs[i] for i in self._test_indexes]
-        return self._inputs[self._test_indexes]
+        return self._inputs[self._test_mask]
 
     @property
     def test_raw_inputs(self):
-        # return [self._raw_inputs[i] for i in self._test_indexes]
-        return self._raw_inputs[self._test_indexes]
+        return self._raw_inputs[self._test_mask]
 
     @property
     def train_labels(self):
-        # return [s for i, s in enumerate(self._labels) if i not in self._test_indexes]
-        return self._labels[~self._test_indexes]
+        return self._labels[~self._test_mask]
 
     @property
     def test_labels(self):
-        # return [self._labels[i] for i in self._test_indexes]
-        return self._labels[self._test_indexes]
+        return self._labels[self._test_mask]
 
     def decode_labels(self, labels):
         return [self._index_emotion[i].name for i in labels]
