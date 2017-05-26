@@ -25,7 +25,8 @@ if args.save_interval is not None:
 import numpy as np
 from utility import console
 from data_source import TweetsDataSource
-from classifiers.glove import GloveTraining, HParams
+from classifiers.glove import GloveTraining
+from classifiers.utility import HParams
 
 hparams = HParams() # Hyperparameters "struct"
 hparams.batch_size = 200

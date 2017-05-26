@@ -1,8 +1,8 @@
-from utility import console
+from utility import console, Emotion
 from utility.strings import StringStore
 
 from .classifier import Classifier
-from .batch import Batch
+from .utility import Batch
 
 import numpy as np
 
@@ -14,13 +14,13 @@ class UnigramClassifier(Classifier):
     """
     ``UnigramClassifier` classifies sentences by a simple bag-of-words model.
     """
-    def __init__(self, num_labels, unk_threshold=7):
+    def __init__(self, unk_threshold=7):
         """
         Parameters:
             `unk_threshold` if a token appears less than this many times,
                 it is not added to the classifer's vocabulary
         """
-        self._num_labels = num_labels
+        self._num_labels = len(Emotion)
         self._unk_threshold = unk_threshold
 
     def _encode_sentences(self, sentences):
@@ -59,32 +59,34 @@ class UnigramClassifier(Classifier):
         self._graph = tf.Graph()
         with self._graph.as_default():
             # Model inputs
-            self._inputs = tf.placeholder(tf.float32, [None, self._vocab_size], name="word_counts")
-            self._true_labels = tf.placeholder(tf.int32, [None], name="labels")
+            with tf.device("/cpu:0"):
+                self._inputs = tf.placeholder(tf.float32, [None, self._vocab_size], name="word_counts")
+                self._true_labels = tf.placeholder(tf.int32, [None], name="labels")
 
-            # Model parameters
-            self._w = tf.Variable(tf.zeros([self._vocab_size, self._num_labels]),
-                                  dtype=tf.float32,
-                                  name="weights")
-            self._b = tf.Variable(tf.zeros([self._num_labels]),
-                                  dtype=tf.float32,
-                                  name="bias")
+                # Model parameters
+                self._w = tf.Variable(tf.zeros([self._vocab_size, self._num_labels]),
+                                      dtype=tf.float32,
+                                      name="weights")
+                self._b = tf.Variable(tf.zeros([self._num_labels]),
+                                      dtype=tf.float32,
+                                      name="bias")
 
-            self._logits = tf.nn.xw_plus_b(self._inputs, self._w, self._b)
-            self._softmax = tf.nn.softmax(self._logits)
-            self._predictions = tf.argmax(self._softmax, axis=1)
+                self._logits = tf.nn.xw_plus_b(self._inputs, self._w, self._b)
+                self._softmax = tf.nn.softmax(self._logits)
+                self._predictions = tf.argmax(self._softmax, axis=1)
 
-            self._loss = tf.reduce_mean(
-                tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    labels=self._true_labels,
-                    logits=self._logits))
+                self._loss = tf.reduce_mean(
+                    tf.nn.sparse_softmax_cross_entropy_with_logits(
+                        labels=self._true_labels,
+                        logits=self._logits))
 
-            self._train_op = tf.train.AdamOptimizer().minimize(self._loss)
-            self._init_op = tf.global_variables_initializer()
+                self._train_op = tf.train.AdamOptimizer().minimize(self._loss)
+                self._init_op = tf.global_variables_initializer()
 
         # Begin the training loop
         with tf.Session(graph=self._graph) as sess:
             sess.run(self._init_op)
+            console.info("Begin train loop")
             t = 0
             for t in range(max_epochs):
                 batch = get_minibatch(50)
@@ -101,10 +103,11 @@ class UnigramClassifier(Classifier):
     def predict(self, sentences):
         with tf.Session(graph=self._graph) as sess:
             sess.run(self._init_op)
+            console.info("Begin predict session")
             feed = {
                 self._inputs: self._encode_sentences(sentences),
                 self._w: self._w_saved,
                 self._b: self._b_saved
             }
-            predictions, probs = sess.run([self._predictions, self._softmax], feed_dict=feed)
+            predictions = sess.run(self._predictions, feed_dict=feed)
             return predictions

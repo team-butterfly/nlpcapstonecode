@@ -18,7 +18,7 @@ from nltk.tokenize import wordpunct_tokenize
 # e.g. ds = TweetsDataSource(file_glob="data/tweets.v3.*.txt", random_seed=5)
 class TweetsDataSource(object):
 
-    _tokenizer = TweetTokenizer()
+    _default_tokenizer = TweetTokenizer()
 
     def _clean_text(text, escape_unicode=False):
         if escape_unicode:
@@ -33,8 +33,8 @@ class TweetsDataSource(object):
 
         return text
 
-    def tokenize(sent):
-        return TweetsDataSource._tokenizer.tokenize(sent)
+    def _default_tokenize(sent):
+        return TweetsDataSource._default_tokenizer.tokenize(sent)
 
     def __init__(self, *args, **kwargs):
         pct_test = 0.10
@@ -50,7 +50,7 @@ class TweetsDataSource(object):
         if 'file_glob' in kwargs:
             filenames += glob.glob(kwargs['file_glob'])
 
-        tokenize = TweetTokenizer().tokenize
+        tokenize = TweetsDataSource._default_tokenize
         if 'tokenizer' in kwargs:
             if kwargs['tokenizer'] == 'wordpunct':
                 tokenize = wordpunct_tokenize
@@ -62,6 +62,8 @@ class TweetsDataSource(object):
                 tokenize = MosesTokenizer().tokenize
             elif kwargs['tokenizer'] == 'tweet':
                 tokenize = TweetTokenizer().tokenize
+
+        self.tokenize = tokenize # Make this public for classifiers, etc.
 
         self._raw_inputs = []
         self._inputs = []

@@ -1,24 +1,20 @@
 """
-Try running the models
+Prints performance metrics of various models.
 """
-from classifiers import UnigramClassifier, LstmClassifier, EmoLexBowClassifier
+from classifiers import UnigramClassifier, LstmClassifier, EmoLexBowClassifier, GloveClassifier
 from data_source import TweetsDataSource
 from utility import console, Emotion
 import numpy as np
 
 EPS = 1E-8
 
-# tweets_v3 = ["data/tweets.v3.part{:02d}.txt".format(n) for n in range(1, 11)]
-tweets = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5)
-
-def print_metrics(title, truth, predictions, mfc_class):
+def print_metrics(truth, predictions, mfc_class):
     N = len(truth)
     frequencies = np.bincount(truth) / N
     mfc_acc = frequencies[mfc_class]
     acc = np.equal(predictions, truth).mean()
 
-    console.h1(title)
-    console.h1("\tFrequencies: {}".format(frequencies))
+    console.h1("\tFrequencies: {}".format(frequencies[1:]))
     console.h1("\tCount:\t{}".format(N))
     console.h1("\tAcc:\t{:.4f}".format(acc))
     console.h1("\tMfc:\t{:.4f}".format(mfc_acc))
@@ -55,12 +51,6 @@ def print_metrics(title, truth, predictions, mfc_class):
 def assess_classifier(classifier, data_src):
     mfc_class = np.bincount(data_src.train_labels).argmax()
     print_metrics(
-        "Training data",
-        data_src.train_labels,
-        classifier.predict(data_src.train_inputs),
-        mfc_class)
-    print_metrics(
-        "Test data",
         data_src.test_labels,
         classifier.predict(data_src.test_inputs),
         mfc_class)
@@ -75,18 +65,27 @@ class RawInputsWrapper():
 
 
 if __name__ == "__main__":
-    for label in tweets.test_labels:
-        assert Emotion(label).value == label
-    for label in tweets.train_labels:
-        assert Emotion(label).value == label
+    tweets = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5)
 
     console.h1("UnigramClassifier")
-    unigram = UnigramClassifier(len(Emotion))
+    unigram = UnigramClassifier()
     unigram.train(tweets.train_inputs, tweets.train_labels, max_epochs=1000)
     assess_classifier(unigram, tweets)
+    del unigram
     
     console.h1("EmoLexBowClassifier")
-    emolex = EmoLexBowClassifier("data/emolex/emolex.txt")
+    emolex = EmoLexBowClassifier()
     emolex.train(tweets.train_inputs, tweets.train_labels)
     assess_classifier(emolex, tweets)
+    del emolex
 
+    console.h1("GloveClassifier - Attention on Hidden States")
+    glove = GloveClassifier("attention_hiddens")
+    assess_classifier(glove, tweets)
+    glove.close()
+    del glove
+
+    console.h1("GloveClassifier - No Nttention")
+    glove = GloveClassifier("no_attention")
+    assess_classifier(glove, tweets)
+    glove.close()

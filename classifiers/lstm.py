@@ -8,7 +8,7 @@ import tensorflow as tf
 
 from utility import console
 from .classifier import Classifier
-from .batch import Minibatcher
+from .utility import Minibatcher
 from . import lstm_util
 
 

@@ -1,7 +1,11 @@
 """
-Utilities for data batching
+Utilities for classifiers 
 """
+from pprint import pformat
 import numpy as np
+import tensorflow as tf
+from utility import Emotion
+
 
 def pad_to_max_len(xs):
     maxlen = max(len(x) for x in xs)
@@ -10,8 +14,70 @@ def pad_to_max_len(xs):
         ret[i, :len(x)] = x
     return ret
 
+
 def lengths(xs):
     return np.fromiter(map(len, xs), dtype=np.int, count=len(xs))
+
+
+plot_colors = {
+    Emotion.ANGER:   [1.000, 0.129, 0.345], # Red
+    Emotion.SADNESS: [0.231, 0.639, 0.988], # Blue
+    Emotion.JOY:     [0.671, 0.847, 0] # Light green
+}
+
+def plot_attention(sent, attn, emotion, path):
+    import matplotlib; matplotlib.use("Agg") # Backend without interactive display
+    import matplotlib.pyplot as plt
+    assert len(sent) == len(attn), "Mismatched sentence and attention lengths: {}, {}".format(sent, attn)
+
+    rgb = plot_colors[emotion]
+
+    fig, ax = plt.subplots()
+    ax.axis("off")
+    t = ax.transData
+    renderer = ax.figure.canvas.get_renderer()
+    rgba = rgb + [0]
+    w, max_w = 0, 312
+    bbox = {"fc": rgba, "ec": (0, 0, 0, 0), "boxstyle": "round"} # Word bounding box
+    for s, a in zip(sent, attn):
+        rgba[3] = a 
+        text = ax.text(0, 0.9, s, bbox=bbox, transform=t, size=12, fontname="Monospace")
+        text.draw(renderer)
+        ex = text.get_window_extent()
+        if w > max_w:
+            t = matplotlib.transforms.offset_copy(text._transform, x=-w, y=-ex.height*2, units="dots")
+            w = 0
+        else:
+            dw = ex.width + 20
+            t = matplotlib.transforms.offset_copy(text._transform, x=dw, units="dots")
+            w += dw
+    plt.savefig(path, transparent=True)
+    plt.close(fig)
+
+
+
+
+def xavier(size_in, size_out):
+    d = np.sqrt(6 / (size_in + size_out))
+    return tf.random_uniform((size_in, size_out), minval=-d, maxval=d)
+
+
+class HParams():
+    """
+    Hyperparameters 'struct'
+    """
+    def __init__(self):
+        self.learning_rate = 1e-3
+        self.epsilon = 1e-8
+        self.hidden_size = 200
+        self.keep_prob_in = 0.5
+        self.keep_prob_out = 0.5
+        self.batch_size = 128
+ 
+    def __str__(self):
+        return pformat(self.__dict__) 
+
+
 
 class Batch():
 
@@ -22,6 +88,7 @@ class Batch():
         self.xs = xs
         self.ys = ys
         self.lengths = lengths
+
 
 class Minibatcher():
     """

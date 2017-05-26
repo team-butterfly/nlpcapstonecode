@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from .batch import Batch
+from .utility import Batch
 from utility import Emotion
 
 

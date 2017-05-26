@@ -1,7 +1,7 @@
 from collections import defaultdict, deque
 from utility import console, Emotion
 from .classifier import Classifier
-from .batch import Batch, Minibatcher
+from .utility import Batch, Minibatcher
 import numpy as np
 import tensorflow as tf
 
@@ -11,23 +11,24 @@ class _EmoLexGraph():
     def __init__(self, input_dim, output_dim):
         self.graph = tf.Graph()
         with self.graph.as_default():
-            self.inputs = tf.placeholder(tf.float32, [None, input_dim])
-            self.labels = tf.placeholder(tf.int32, [None]) # true labels
-            
-            self.w = tf.Variable(
-                    tf.random_uniform([input_dim, output_dim],
-                        minval=-6/np.sqrt(input_dim + output_dim),
-                        maxval=-6/np.sqrt(input_dim + output_dim)))
-            self.b = tf.Variable(tf.zeros([output_dim]))
+            with tf.device("/cpu:0"):
+                self.inputs = tf.placeholder(tf.float32, [None, input_dim])
+                self.labels = tf.placeholder(tf.int32, [None]) # true labels
+                
+                self.w = tf.Variable(
+                        tf.random_uniform([input_dim, output_dim],
+                            minval=-6/np.sqrt(input_dim + output_dim),
+                            maxval=-6/np.sqrt(input_dim + output_dim)))
+                self.b = tf.Variable(tf.zeros([output_dim]))
 
-            self.logits = tf.nn.xw_plus_b(self.inputs, self.w, self.b)
-            self.probabilities = tf.nn.softmax(self.logits)
+                self.logits = tf.nn.xw_plus_b(self.inputs, self.w, self.b)
+                self.probabilities = tf.nn.softmax(self.logits)
 
-            self.loss = tf.reduce_mean(
-                tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels, logits=self.logits))
+                self.loss = tf.reduce_mean(
+                    tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels, logits=self.logits))
 
-            self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
-            self.init_op = tf.global_variables_initializer()
+                self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
+                self.init_op = tf.global_variables_initializer()
 
 
 class EmoLexBowClassifier(Classifier):
@@ -45,13 +46,13 @@ class EmoLexBowClassifier(Classifier):
         "trust"
     )
 
-    def __init__(self, emolex_path):
+    def __init__(self):
         self._index_emotion = self._keys
         self._emotion_index = {key: i for i, key in enumerate(self._keys)}
         self._map = defaultdict(lambda: np.zeros(len(self._keys), np.int32))
         self._g = _EmoLexGraph(len(self._keys), len(Emotion))
 
-        with open(emolex_path) as f:
+        with open("emolex/emolex.txt", "r") as f:
             f.readline()
             for line in f.readlines():
                 word, emotion, assoc = line.split("\t")

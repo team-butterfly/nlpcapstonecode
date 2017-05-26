@@ -6,7 +6,7 @@ import tensorflow as tf
 
 from utility import console, Emotion
 from .classifier import Classifier
-from .batch import Batch, Minibatcher
+from .utility import Batch, Minibatcher
 
 
 def xavier(size_in, size_out):

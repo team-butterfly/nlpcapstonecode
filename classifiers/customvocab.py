@@ -6,17 +6,49 @@ from collections import namedtuple
 from os.path import join as pjoin
 from os.path import isdir 
 from os import mkdir
+from pprint import pformat
 import json
 import pickle
+from nltk.tokenize import word_tokenize
 import numpy as np
 import tensorflow as tf
-
-import classifiers.utility as util
 
 from utility import console, Emotion
 from utility.strings import read_vocab
 from data_source import TweetsDataSource
 from .classifier import Classifier
+from .utility import Batch, Minibatcher, pad_to_max_len, lengths
+
+
+def plot_attention(sent, attn, rgb, title, path):
+    import matplotlib; matplotlib.use("Agg") # Backend without interactive display
+    import matplotlib.pyplot as plt
+    assert len(sent) == len(attn)
+    assert len(rgb) == 3
+
+    fig, ax = plt.subplots()
+    ax.axis("off")
+    t = ax.transData
+    renderer = ax.figure.canvas.get_renderer()
+    rgba = np.append(rgb, 1.0) # Append alpha channel
+    lo, hi = min(attn), max(attn)
+    w, max_w = 0, 312
+    bbox = {"fc": rgba, "ec": (0, 0, 0, 0), "boxstyle": "round"} # Word bounding box
+    for s, a in zip(sent, attn):
+        rgba[3] = (a - lo) / (hi - lo)
+        text = ax.text(0, 0.9, s, bbox=bbox, transform=t, size=12, fontname="Monospace")
+        text.draw(renderer)
+        ex = text.get_window_extent()
+        if w > max_w:
+            t = matplotlib.transforms.offset_copy(text._transform, x=-w, y=-ex.height*2, units="dots")
+            w = 0
+        else:
+            dw = ex.width + 20
+            t = matplotlib.transforms.offset_copy(text._transform, x=dw, units="dots")
+            w += dw
+    plt.title(title)
+    plt.savefig(path, transparent=True)
+    plt.close(fig)
 
 
 class _GloveGraph():
@@ -96,7 +128,7 @@ class _GloveGraph():
             float_mask = tf.cast(mask[:, :, tf.newaxis], tf.float32)
 
             # Bilinear parameterization with a (square) weights matrix
-            w_m = tf.Variable(util.xavier(hp.hidden_size*2, hp.hidden_size*2), tf.float32)
+            w_m = tf.Variable(xavier(hp.hidden_size*2, hp.hidden_size*2), tf.float32)
             self.e = tf.reduce_sum(
                 tf.matmul(o, w_m)[:, tf.newaxis, :] # broadcast across all time steps
                     * (attn_target * float_mask),
@@ -113,7 +145,7 @@ class _GloveGraph():
 
             self.x = self.x / tf.norm(self.x, axis=1, keep_dims=True)
 
-            self.w = tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS), name="dense_weights")
+            self.w = tf.Variable(xavier(hp.hidden_size*2, self.NUM_LABELS), name="dense_weights")
             self.b = tf.Variable(tf.zeros(self.NUM_LABELS), name="dense_biases")
 
             # Use these logits to enable attention:
@@ -121,7 +153,7 @@ class _GloveGraph():
             
             # Use these logits to bypass attention:
             # self.logits = tf.nn.xw_plus_b(self.concat_final_states,
-            #     tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
+            #     tf.Variable(xavier(hp.hidden_size*2, self.NUM_LABELS)),
             #     tf.Variable(tf.zeros(self.NUM_LABELS)))
             self.softmax = tf.nn.softmax(self.logits)
 
@@ -169,68 +201,82 @@ class GloveClassifier(Classifier):
         console.time_end("Read vocab")
         self.vocab_size = len(self.index_word)
         
+        self._sess = tf.Session()
         ckpt = pjoin("ckpts", "glove", name)
         console.info("Looking in", ckpt)
         latest = tf.train.latest_checkpoint(ckpt)
         if latest is None:
             raise ValueError("No checkpoint found in {}".format(ckpt))
+        saver = tf.train.import_meta_graph(latest + ".meta")
+        saver.restore(self._sess, latest)
 
-        self._graph = tf.Graph()
-        self._sess = tf.Session(graph=self._graph)
-        with self._graph.as_default():
-            saver = tf.train.import_meta_graph(latest + ".meta")
-            saver.restore(self._sess, latest)
-
-            self.inputs = tf.get_collection("inputs")[0]
-            self.batch_size = tf.get_collection("batch_size")[0]
-            self.true_lengths = tf.get_collection("true_lengths")[0]
-            self.labels = tf.get_collection("labels")[0]
-            self.softmax = tf.get_collection("softmax")[0]
-            self.attention = tf.get_collection("attention")[0]
+        self.inputs = tf.get_collection("inputs")[0]
+        self.batch_size = tf.get_collection("batch_size")[0]
+        self.true_lengths = tf.get_collection("true_lengths")[0]
+        self.labels = tf.get_collection("labels")[0]
+        self.softmax = tf.get_collection("softmax")[0]
+        self.attention = tf.get_collection("attention")[0]
 
 
     def _unwordids(self, ids):
         return [self.index_word[i] if i < self.vocab_size else "[UNK]" for i in ids]
 
 
-    def _make_feed(self, tokens):
+    def _make_feed(self, list_strs):
         def lookup(word):
             return self.word_index.get(word.lower(), self.vocab_size)
 
+        tokens = [word_tokenize(s) for s in list_strs]
+        console.info("strs to tokens:", tokens)
         ids = np.zeros(len(tokens), dtype=object)
         for i, sent in enumerate(tokens):
             ids[i] = np.fromiter((lookup(w) for w in sent), dtype=np.int, count=len(sent))
 
         return {
             self.batch_size:   len(ids),
-            self.inputs:       util.pad_to_max_len(ids),
-            self.true_lengths: util.lengths(ids)
+            self.inputs:       pad_to_max_len(ids),
+            self.true_lengths: lengths(ids)
         }
 
     
-    def predict(self, tokens):
-        feed = self._make_feed(tokens)
+    def predict(self, list_strs):
+        feed = self._make_feed(list_strs)
         return self._sess.run(self.labels, feed)
         
 
-    def predict_soft(self, tokens):
-        feed = self._make_feed(tokens)
+    def predict_soft(self, list_strs):
+        feed = self._make_feed(list_strs)
         return self._sess.run(self.softmax, feed)
 
     
-    def predict_soft_with_attention(self, tokens):
-        feed = self._make_feed(tokens)
+    def predict_soft_with_attention(self, list_strs):
+        feed = self._make_feed(list_strs)
         [soft_labels, attns] = self._sess.run([self.softmax, self.attention], feed)
 
         data = []
-        for i in range(len(tokens)):
+        for i in range(len(list_strs)):
             emos = {emo: soft_labels[i][emo.value] for emo in (Emotion.SADNESS, Emotion.ANGER, Emotion.JOY)}
-            tokens = self._unwordids(feed[self.inputs][i])
-            data.append((tokens, emos, attns[i]))
+            data.append((feed[self.inputs][i], emos, attns[i]))
         return data 
 
-    def close(self):
-        self._sess.close()
+    def predict_as_json(self, list_strs):
+        feed = self._make_feed(list_strs)
+        [soft_labels, attns] = self._sess.run([self.softmax, self.attention], feed)
+
+        n = len(list_strs)
+        jsons = []
+        for i in range(n):
+            y_pred = np.argmax(soft_labels[i]).item()
+            em_pred = Emotion(y_pred).name
+            tokens = self._unwordids(feed[self.inputs][i])
+            attn_clip = attns[i][:len(tokens)].tolist()
+            obj = json.dumps({
+                "words":      tokens,
+                "attention":  attn_clip,
+                "pred_label": em_pred
+            })
+            jsons.append(obj)
+        return jsons
 
 
 class GloveTraining():
@@ -242,7 +288,6 @@ class GloveTraining():
         * Checkpoint dir: ckpts/glove/<name>
         * Checkpoint file ckpts/glove/<name>/<name>
         """
-        self.name = name
         self.hp = hparams
         try:
             self.logdir = pjoin("log", "glove", name)
@@ -276,7 +321,7 @@ class GloveTraining():
         console.info("GloveTraining: found {} OOV words ({:.2f}%)".format(oov, oov / tot * 100.0))
         return wordids
 
-    def _unwordids(self, ids):
+    def _unwordids(ids):
         return [self._glove["index_word"][i] if i < len(self._glove["index_word"]) else "[UNK]" for i in ids]
 
     def run(
@@ -328,12 +373,12 @@ class GloveTraining():
         # Feed dict for evaluating on the validation set
         eval_feed = {
             self._g.batch_size:   len(eval_data),
-            self._g.inputs:       util.pad_to_max_len(eval_data),
+            self._g.inputs:       pad_to_max_len(eval_data),
             self._g.labels:       eval_labels,
-            self._g.true_lengths: util.lengths(eval_data)
+            self._g.true_lengths: lengths(eval_data)
         }
 
-        minibatcher = util.Minibatcher(util.Batch(train_data, true_labels, util.lengths(train_data)))
+        minibatcher = Minibatcher(Batch(train_data, true_labels, lengths(train_data)))
 
         if plot_interval is not None:
             # Choose some stratified sample of the evaluation data to visualize attention weights.
@@ -342,16 +387,23 @@ class GloveTraining():
             indices = np.arange(len(eval_data))
             pools = [indices[eval_labels == em.value] for em in (Emotion.ANGER, Emotion.SADNESS, Emotion.JOY)]
             plot_idx = np.concatenate([rand.choice(pool, SAMPLES_PER_CLASS, replace=False) for pool in pools])
+            del pools
+            del indices
             plot_inputs = eval_data[plot_idx]
+            plot_labels = eval_labels[plot_idx]
+            plot_words = [self._unwordids(wordids) for wordids in plot_inputs]
+            plot_colors = {
+                Emotion.ANGER:   (1.000, 0.129, 0.345), # Red
+                Emotion.SADNESS: (0.231, 0.639, 0.988), # Blue
+                Emotion.JOY:     (0.671, 0.847, 0) # Light green
+            }
 
             plot_feed = {
                 self._g.batch_size:   len(plot_inputs),
-                self._g.inputs:       util.pad_to_max_len(plot_inputs),
-                self._g.true_lengths: util.lengths(plot_inputs)
+                self._g.inputs:       pad_to_max_len(plot_inputs),
+                self._g.true_lengths: lengths(plot_inputs),
+                self._g.true_labels:  plot_labels
             }
-            del pools
-            del indices
-            del plot_idx
 
         if progress_interval is not None:
             next_progress = 0.0    
@@ -398,13 +450,27 @@ class GloveTraining():
 
                     # Plot sample attentions.
                     if plot_interval is not None and minibatcher.cur_epoch % plot_interval == 0:
-                        [attns, plot_preds] = sess.run([self._g.a, self._g.labels_predicted], plot_feed)
-                        for i in range(len(plot_inputs)):
-                            plot_words = self._unwordids(plot_inputs[i])
-                            attn_clip  = attns[i][:len(plot_words)]
-                            fname      = "plots/{}_attention_epoch{:02d}_{:02d}.png".format(self.name, minibatcher.cur_epoch-1, i)
-                            util.plot_attention(plot_words, attn_clip, Emotion(plot_preds[i]), fname)
-                            console.info("Saved plot to", fname)
+                        [attns, attn_preds] = sess.run([self._g.a, self._g.labels_predicted], plot_feed)
+                        for i in range(len(plot_words)):
+                            em = Emotion(plot_labels[i]) # The true label
+                            em_pred = Emotion(attn_preds[i]) # Predicted label
+                            title = "True label '{}', Predicted '{}'".format(em.name, em_pred.name)
+                            fname = "plots/attn/epoch{:02d}_{:02d}".format(minibatcher.cur_epoch-1, i)
+                            fname_plot = fname + ".png"
+
+                            attn_clip = attns[i][:len(plot_words[i])].tolist()
+                            plot_attention(plot_words[i], attn_clip, plot_colors[em], title, fname_plot)
+                            console.info("Saved plot to", fname_plot)
+
+                            obj = {
+                                "words": plot_words[i],
+                                "attention": attn_clip,
+                                "true_label": em.name,
+                                "pred_label": em_pred.name
+                            }
+                            fname_obj = fname + ".json"
+                            json.dump(obj, open(fname_obj, "w"))
+                            console.info("saved JSON to", fname_obj)
 
                     if eval_interval is not None and minibatcher.cur_epoch % eval_interval == 0:
                         eval_pred = sess.run(self._g.labels_predicted, eval_feed)
