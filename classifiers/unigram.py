@@ -37,8 +37,7 @@ class UnigramClassifier(Classifier):
 
         # First, set up the vocabulary and such
         sentences = data_source.train_inputs
-        word_iter = (token for sent in sentences for token in sent)
-        self._stringstore = StringStore(word_iter, self._vocab_size)
+        self._stringstore = StringStore(data_source.train_inputs, self._vocab_size)
         self._vocab_size = len(self._stringstore)
 
         console.log("UnigramClassifier.train: vocabulary size is", self._vocab_size)
@@ -94,7 +93,6 @@ class UnigramClassifier(Classifier):
                 }
                 sess.run([self._train_op], train_feed)
 
-            # Temporary kludge until I figure out the right way to do this...
             self._w_saved = self._w.eval()
             self._b_saved = self._b.eval()
 

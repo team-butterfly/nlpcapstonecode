@@ -4,6 +4,7 @@ Defines some useful operations for strings/vocabularies
 from enum import Enum
 from collections import Counter
 import numpy as np
+from . import console
 
 def read_vocab(fn):
     with open(fn, "r") as f:
@@ -21,10 +22,25 @@ class StringStore():
     StringStore remembers integer IDs for each unique string in an iterable.
     Ignores case.
     """
-    def __init__(self, word_iter, limit):
-        counts = Counter(map(lambda s: s.lower(), word_iter))
-        self._id2w = [word for word, _ in counts.most_common(limit-1)]
-        self._id2w.append("<unk>")
+    
+    _UNK = "<unk>"
+
+    def __init__(self, sentences, limit, use_tfidf=False):
+        console.time("StringStore find vocab")
+        sentences = [[word.lower() for word in sent] for sent in sentences]
+        counts = Counter(word for sent in sentences for word in sent)
+        if use_tfidf:
+            n_contain = Counter()
+            for sent in sentences:
+                for w in set(sent):
+                    n_contain[w] += 1
+            def tfidf(word):
+                return counts[word] * np.log(len(sentences) / (1 + n_contain[word]))
+            self._id2w = sorted(counts.keys(), key=tfidf, reverse=True)[:limit-1]
+        else:
+            self._id2w = [word for word, _ in counts.most_common(limit-1)]
+        console.time("StringStore find vocab")
+        self._id2w.append(self._UNK)
         self._w2id = {word: idx for idx, word in enumerate(self._id2w)}
         assert len(self._id2w) == len(self._w2id)
 
@@ -42,7 +58,7 @@ class StringStore():
     def word2id(self, word):
         """Return an integer ID for word. Word may be unk."""
         if word not in self._w2id:
-            word = "<unk>"
+            word = self._UNK
         return self._w2id[word]
 
     def id2word(self, i):

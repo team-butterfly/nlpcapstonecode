@@ -104,12 +104,14 @@ class _CustomVocabGraph():
             self.b = tf.Variable(tf.zeros(self.NUM_LABELS), name="dense_biases")
 
             # Use these logits to enable attention:
-            self.logits = tf.nn.xw_plus_b(self.x, self.w, self.b)
+            self.logits_a = tf.nn.xw_plus_b(self.x, self.w, self.b)
             
             # Use these logits to bypass attention:
-            # self.logits = tf.nn.xw_plus_b(self.concat_final_states,
-            #     tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
-            #     tf.Variable(tf.zeros(self.NUM_LABELS)))
+            self.logits_b = tf.nn.xw_plus_b(self.concat_final_states,
+                tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
+                tf.Variable(tf.zeros(self.NUM_LABELS)))
+            
+            self.logits = self.logits_b
             self.softmax = tf.nn.softmax(self.logits)
 
             # Must cast tf.argmax to int32 because it returns int64
@@ -275,8 +277,7 @@ class CustomVocabTraining():
         """
 
         ds = data_source
-        all_words = (token for sent in ds.train_inputs for token in sent)
-        self.vocab = StringStore(all_words, self.hparams.vocab_size)
+        self.vocab = StringStore(ds.train_inputs, self.hparams.vocab_size)
 
         train_inputs = self._tokens_to_ids(ds.train_inputs) 
         true_labels = np.array(ds.train_labels, dtype=np.int)
