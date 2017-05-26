@@ -8,7 +8,6 @@ parser = argparse.ArgumentParser(description="Train and evaluate the GloVe LSTM 
 parser.add_argument("--name", type=str, required=True, help="Name of this training instance. "
 	+ " This determines where to save Tensorboard logs and ckpts.")
 parser.add_argument("--save_interval", type=int, nargs="?", default=None, help="Save model every N epochs")
-parser.add_argument("--plot_interval", type=int, nargs="?", default=None, help="Plot model every N epochs")
 parser.add_argument("--eval_interval", type=int, nargs="?", default=None, help="Evaluate model every N epochs")
 parser.add_argument("--progress_interval", type=float, nargs="?", default=0.01, help="Progress bar interval (percent)")
 parser.add_argument("--num_epochs", type=int, nargs="?", default=None, help="Number of epochs")

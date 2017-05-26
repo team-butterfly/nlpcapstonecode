@@ -65,7 +65,7 @@ class RawInputsWrapper():
 
 
 if __name__ == "__main__":
-    tweets = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5)
+    tweets = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5, tokenizer="word")
 
     console.h1("UnigramClassifier")
     unigram = UnigramClassifier()
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     glove.close()
     del glove
 
-    console.h1("GloveClassifier - No Nttention")
+    console.h1("GloveClassifier - No Attention")
     glove = GloveClassifier("no_attention")
     assess_classifier(glove, tweets)
     glove.close()

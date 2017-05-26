@@ -168,7 +168,7 @@ class GloveClassifier(Classifier):
         self.index_word, self.word_index = read_vocab("vocab.glove.txt")
         console.time_end("Read vocab")
         self.vocab_size = len(self.index_word)
-        
+
         ckpt = pjoin("ckpts", "glove", name)
         console.info("Looking in", ckpt)
         latest = tf.train.latest_checkpoint(ckpt)
@@ -225,8 +225,10 @@ class GloveClassifier(Classifier):
         data = []
         for i in range(len(tokens)):
             emos = {emo: soft_labels[i][emo.value] for emo in (Emotion.SADNESS, Emotion.ANGER, Emotion.JOY)}
-            tokens = self._unwordids(feed[self.inputs][i])
-            data.append((tokens, emos, attns[i]))
+            num_words = feed[self.true_lengths][i]
+            tokens = feed[self.inputs][i][:num_words]
+            tokens = self._unwordids(tokens)
+            data.append((tokens, emos, attns[i][:num_words]))
         return data 
 
     def close(self):
@@ -295,8 +297,6 @@ class GloveTraining():
             `save_interval`: positive integer (default: 1), or None
                 if not None, save a checkpoint and report evaluation metrics
                 every save_interval epochs
-            `plot_interval`: positive integer, or None (default)
-                if not None, plots sample attentions every plot_interval epochs
             `eval_interval`: positive integer, or None (default)
                 if not None, write eval accuracy to console every eval_interval
                 epochs
@@ -330,23 +330,6 @@ class GloveTraining():
 
         minibatcher = util.Minibatcher(util.Batch(train_data, true_labels, util.lengths(train_data)))
 
-        if plot_interval is not None:
-            # Choose some stratified sample of the evaluation data to visualize attention weights.
-            SAMPLES_PER_CLASS = 4
-            rand = np.random.RandomState(12) # Use fixed seed for reproducibility.
-            indices = np.arange(len(eval_data))
-            pools = [indices[eval_labels == em.value] for em in (Emotion.ANGER, Emotion.SADNESS, Emotion.JOY)]
-            plot_idx = np.concatenate([rand.choice(pool, SAMPLES_PER_CLASS, replace=False) for pool in pools])
-            plot_inputs = eval_data[plot_idx]
-
-            plot_feed = {
-                self._g.batch_size:   len(plot_inputs),
-                self._g.inputs:       util.pad_to_max_len(plot_inputs),
-                self._g.true_lengths: util.lengths(plot_inputs)
-            }
-            del pools
-            del indices
-            del plot_idx
 
         if progress_interval is not None:
             next_progress = 0.0    
@@ -386,16 +369,6 @@ class GloveTraining():
                             console.colors.GREEN + console.colors.BRIGHT
                             + "{}\tCheckpoint saved to {}".format(datetime.now(), saved_path)
                             + console.colors.END)
-
-                    # Plot sample attentions.
-                    if plot_interval is not None and minibatcher.cur_epoch % plot_interval == 0:
-                        [attns, plot_preds] = sess.run([self._g.a, self._g.labels_predicted], plot_feed)
-                        for i in range(len(plot_inputs)):
-                            plot_words = self._unwordids(plot_inputs[i])
-                            attn_clip  = attns[i][:len(plot_words)]
-                            fname      = "plots/{}_attention_epoch{:02d}_{:02d}.png".format(self.name, minibatcher.cur_epoch-1, i)
-                            util.plot_attention(plot_words, attn_clip, Emotion(plot_preds[i]), fname)
-                            console.info("Saved plot to", fname)
 
                     if eval_interval is not None and minibatcher.cur_epoch % eval_interval == 0:
                         eval_pred = sess.run(self._g.labels_predicted, eval_feed)
