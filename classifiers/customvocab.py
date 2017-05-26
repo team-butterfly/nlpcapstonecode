@@ -1,33 +1,28 @@
 """
-Defines a word-level LSTM with GloVe embeddings
+Defines a word-level LSTM with custom embeddings
 """
 from datetime import datetime
-from collections import namedtuple
 from os.path import join as pjoin
-from os.path import isdir 
 from os import mkdir
-import json
-import pickle
 import numpy as np
 import tensorflow as tf
 
 import classifiers.utility as util
 
 from utility import console, Emotion
-from utility.strings import read_vocab
+from utility.strings import read_vocab, StringStore
 from data_source import TweetsDataSource
 from .classifier import Classifier
 
 
-class _GloveGraph():
+class _CustomVocabGraph():
 
     NUM_LABELS = len(Emotion)
 
-    def __init__(self, vocab_size, embed_size, initial_embeddings, hparams):
+    def __init__(self, vocab_size, embed_size, hparams):
         console.info("Building Glove graph")
 
         hp = hparams
-        vocab_size += 1 # Add 1 for UNK
         self.root = tf.Graph()
 
         with self.root.as_default():
@@ -44,9 +39,9 @@ class _GloveGraph():
             self.keep_prob_in = tf.where(self.use_dropout, tf.constant(hp.keep_prob_in), ONE)
             self.keep_prob_out = tf.where(self.use_dropout, tf.constant(hp.keep_prob_out), ONE)
 
-            self.unk_vec = tf.stop_gradient(tf.zeros([1, embed_size], tf.float32))
             self.embeddings = tf.Variable(
-                tf.concat([initial_embeddings, self.unk_vec], axis=0),
+                # util.xavier(vocab_size, embed_size),
+                tf.truncated_normal([vocab_size, embed_size]),
                 dtype=tf.float32,
                 name="embeddings")
 
@@ -79,15 +74,7 @@ class _GloveGraph():
 
             self.concat_final_states = tf.concat([final_fw.h, final_bw.h], axis=1)
 
-            # --------------------
-            # Attention mechanism:
-            #   let v_i = word embedding for i-th word
-            #   let o = sum(forward lstm output, backward lstm output) or some other combination of them
-            #   let e_i = cos_sim(o, v_i) OR o*W*v_i
-            #   let a = normalized scores, i.e. smooth(e) OR softmax(e)
-            #   let x = weighted average, i.e. sum(a_i * v_i)
-            #   let y_hat = softmax(xW + b)
-
+            # Attention mechanism
             o = self.concat_final_states 
 
             # attn_target = self.inputs_embedded # Attention on input embeddings
@@ -159,18 +146,13 @@ class _GloveGraph():
             self.merged = tf.summary.merge_all()
 
 
-# The "Classifier" ABC needs some re-thinking because having "train" and "predict" in the same class
-# makes no sense for a model that must be trained in advance, saved to disk, and loaded to do predictions.
-class GloveClassifier(Classifier):
+class CustomVocabClassifier(Classifier):
 
     def __init__(self, name):
-        console.time("Read vocab")
-        self.index_word, self.word_index = read_vocab("vocab.glove.txt")
-        console.time_end("Read vocab")
+        self.index_word, self.word_index = read_vocab("vocab.{}.txt".format(name))
         self.vocab_size = len(self.index_word)
 
-        ckpt = pjoin("ckpts", "glove", name)
-        console.info("Looking in", ckpt)
+        ckpt = pjoin("ckpts", "customvocab", name)
         latest = tf.train.latest_checkpoint(ckpt)
         if latest is None:
             raise ValueError("No checkpoint found in {}".format(ckpt))
@@ -235,20 +217,20 @@ class GloveClassifier(Classifier):
         self._sess.close()
 
 
-class GloveTraining():
+class CustomVocabTraining():
 
     def __init__(self, name, hparams):
         """
-        Prepares a training session by making the log/checkpoint directories and restoring the model.
-        * Log dir:        log/glove/<name>
-        * Checkpoint dir: ckpts/glove/<name>
-        * Checkpoint file ckpts/glove/<name>/<name>
+        Prepares a training session by making the log/checkpoint directories:
+        * Log dir:        log/customvocab/<name>
+        * Checkpoint dir: ckpts/customvocab/<name>
+        * Checkpoint file ckpts/customvocab/<name>/<name>
         """
         self.name = name
-        self.hp = hparams
+        self.hparams = hparams
         try:
-            self.logdir = pjoin("log", "glove", name)
-            ckpt_dir = pjoin("ckpts", "glove", name)
+            self.logdir = pjoin("log", "customvocab", name)
+            ckpt_dir = pjoin("ckpts", "customvocab", name)
             console.log("Making logdir", self.logdir)
             console.log("Making checkpoint dir", ckpt_dir)
             mkdir(self.logdir)
@@ -258,28 +240,15 @@ class GloveTraining():
             console.warn("Logging or checkpoint directory already exists; choose a unique name for this training instance.")
             raise e
 
-        with open("glove.dict.200d.pkl", "rb") as f:
-            self._glove = pickle.load(f)
-        self._g = _GloveGraph(self._glove["vocab_size"], 200, self._glove["embeddings"], self.hp)
+        self._g = _CustomVocabGraph(self.hparams.vocab_size, self.hparams.embed_size, self.hparams)
 
-    def _tokens_to_word_ids(self, input_tokens):
-        oov = tot = 0
-        def lookup(word):
-            nonlocal oov, tot
-            word = word.lower()
-            if word not in self._glove["word_index"]:
-                oov += 1
-            tot += 1
-            return self._glove["word_index"].get(word, self._glove["vocab_size"])
 
-        wordids = np.zeros(len(input_tokens), dtype=object)
-        for i, sentence in enumerate(input_tokens):
-            wordids[i] = np.fromiter((lookup(w) for w in sentence), dtype=np.int, count=len(sentence))
-        console.info("GloveTraining: found {} OOV words ({:.2f}%)".format(oov, oov / tot * 100.0))
-        return wordids
+    def _tokens_to_ids(self, tokens):
+        return np.array([
+            np.array([self.vocab.word2id(word) for word in sent], dtype=str)
+            for sent in tokens],
+            dtype=object)
 
-    def _unwordids(self, ids):
-        return [self._glove["index_word"][i] if i < len(self._glove["index_word"]) else "[UNK]" for i in ids]
 
     def run(
         self,
@@ -287,7 +256,6 @@ class GloveTraining():
         *,
         num_epochs=None,
         save_interval=1,
-        plot_interval=None,
         eval_interval=None,
         progress_interval=0.01):
         """
@@ -307,29 +275,35 @@ class GloveTraining():
         """
 
         ds = data_source
-        train_data = self._tokens_to_word_ids(ds.train_inputs)
+        all_words = (token for sent in ds.train_inputs for token in sent)
+        self.vocab = StringStore(all_words, self.hparams.vocab_size)
+
+        train_inputs = self._tokens_to_ids(ds.train_inputs) 
         true_labels = np.array(ds.train_labels, dtype=np.int)
 
         # Validation data
-        eval_data = self._tokens_to_word_ids(ds.test_inputs)
+        eval_inputs = self._tokens_to_ids(ds.test_inputs)
         eval_labels = np.array(ds.test_labels, dtype=np.int)
 
         # Feed dict for training steps
         train_feed = {
             self._g.use_dropout: True,
-            self._g.train_embeddings: True
+            self._g.train_embeddings: True,
+            self._g.batch_size: None, 
+            self._g.inputs: None,
+            self._g.labels: None, 
+            self._g.true_lengths: None
         }
 
         # Feed dict for evaluating on the validation set
         eval_feed = {
-            self._g.batch_size:   len(eval_data),
-            self._g.inputs:       util.pad_to_max_len(eval_data),
+            self._g.batch_size:   len(eval_inputs),
+            self._g.inputs:       util.pad_to_max_len(eval_inputs),
             self._g.labels:       eval_labels,
-            self._g.true_lengths: util.lengths(eval_data)
+            self._g.true_lengths: util.lengths(eval_inputs)
         }
 
-        minibatcher = util.Minibatcher(util.Batch(train_data, true_labels, util.lengths(train_data)))
-
+        minibatcher = util.Minibatcher(util.Batch(train_inputs, true_labels, util.lengths(train_inputs)))
 
         if progress_interval is not None:
             next_progress = 0.0    
@@ -343,7 +317,7 @@ class GloveTraining():
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
                     break
 
-                batch = minibatcher.next(self.hp.batch_size, pad_per_batch=True)
+                batch = minibatcher.next(self.hparams.batch_size, pad_per_batch=True)
                 train_feed[self._g.batch_size]   = len(batch.xs)
                 train_feed[self._g.inputs]       = batch.xs
                 train_feed[self._g.labels]       = batch.ys
@@ -377,6 +351,6 @@ class GloveTraining():
 
                 # Not a new epoch - print some stuff to report progress
                 elif progress_interval is not None and minibatcher.epoch_progress >= next_progress:
-                    label = "Global Step {} (Epoch {})".format(step, minibatcher.cur_epoch)
+                    label = "Global Step {} (Epoch {}) Loss {:.5f}".format(step, minibatcher.cur_epoch, cur_loss)
                     console.progress_bar(label, minibatcher.epoch_progress, 60)
                     next_progress += progress_interval

@@ -83,7 +83,9 @@ class EmoLexBowClassifier(Classifier):
         return input_counts
 
 
-    def train(self, input_tokens, labels):
+    def train(self, data_source):
+        input_tokens = data_source.train_inputs
+        labels = data_source.train_labels
         train_data = Batch(xs=self._encode_inputs(input_tokens), ys=np.array(labels), lengths=None)
         minibatcher = Minibatcher(train_data)
 

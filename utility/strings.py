@@ -19,14 +19,12 @@ def read_vocab(fn):
 class StringStore():
     """
     StringStore remembers integer IDs for each unique string in an iterable.
+    Ignores case.
     """
-    def __init__(self, word_iter, unk_threshold=1):
-        """Create a StringStore from words in word_iter.
-        If count(w) < unk_threshold, w is ignored.
-        """
-        counts = Counter(word_iter)
-        vocab = [word for word, n in counts.items() if n >= unk_threshold]
-        self._id2w = sorted(vocab)
+    def __init__(self, word_iter, limit):
+        counts = Counter(map(lambda s: s.lower(), word_iter))
+        self._id2w = [word for word, _ in counts.most_common(limit-1)]
+        self._id2w.append("<unk>")
         self._w2id = {word: idx for idx, word in enumerate(self._id2w)}
         assert len(self._id2w) == len(self._w2id)
 
@@ -38,11 +36,13 @@ class StringStore():
         return len(self._id2w)
 
     def vocab(self):
-        """Return the set of known symbols."""
-        return self._w2id.keys()
+        """Return a list of known symbols."""
+        return self._id2w.copy()
 
     def word2id(self, word):
-        """Return an integer ID for word. Word must be in the vocabulary."""
+        """Return an integer ID for word. Word may be unk."""
+        if word not in self._w2id:
+            word = "<unk>"
         return self._w2id[word]
 
     def id2word(self, i):
@@ -51,13 +51,6 @@ class StringStore():
 
     def count_vector(self, word_iter):
         """Return a vector v with length equal to my vocabulary size,
-        where v[i] = count of instance of word with ID=i seen in word_iter.
+        where v[i] = count of word with ID=i seen in word_iter.
         """
-        as_ids = [self.word2id(word) for word in word_iter if word in self._w2id]
-        return np.bincount(as_ids, minlength=len(self))
-
-if __name__ == "__main__":
-    inp = open("/homes/iws/brandv2/nlp/corpus/brown.txt").read().split()
-    ss = StringStore(inp)
-    for word in ss.vocab():
-        assert ss.id2word(ss.word2id(word)) == word
+        return np.bincount([self.word2id(w) for w in word_iter], minlength=len(self))

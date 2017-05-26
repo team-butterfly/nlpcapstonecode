@@ -14,40 +14,38 @@ class UnigramClassifier(Classifier):
     """
     ``UnigramClassifier` classifies sentences by a simple bag-of-words model.
     """
-    def __init__(self, unk_threshold=7):
+    def __init__(self, vocab_size=20000):
         """
         Parameters:
             `unk_threshold` if a token appears less than this many times,
                 it is not added to the classifer's vocabulary
         """
         self._num_labels = len(Emotion)
-        self._unk_threshold = unk_threshold
+        self._vocab_size = vocab_size
 
     def _encode_sentences(self, sentences):
         """Convert a list of token sequences into a matrix of unigram counts."""
         return np.array([self._stringstore.count_vector(sent) for sent in sentences])
 
-    def train(self, sentences, true_labels, max_epochs=1000):
+    def train(self, data_source, max_epochs=1000):
         """
-        Parameters:
-            `sentences` training inputs -- a list of lists of tokens
-            `true_labels` list integer labels, one for each sentence
-            `num_labels` total number of labels for classification
+        Args:
             `max_epochs` (default 1000) maximum number of training epochs to run
         """
         if max_epochs is None:
             raise ValueError("UnigramClassifier max_epochs cannot be None")
 
         # First, set up the vocabulary and such
+        sentences = data_source.train_inputs
         word_iter = (token for sent in sentences for token in sent)
-        self._stringstore = StringStore(word_iter, unk_threshold=self._unk_threshold)
+        self._stringstore = StringStore(word_iter, self._vocab_size)
         self._vocab_size = len(self._stringstore)
 
         console.log("UnigramClassifier.train: vocabulary size is", self._vocab_size)
 
         # Set up minibatching
         encoded_inputs = self._encode_sentences(sentences)
-        array_labels = np.array(true_labels)
+        array_labels = data_source.train_labels
         batch_idx = 0
         def get_minibatch(size):
             nonlocal batch_idx

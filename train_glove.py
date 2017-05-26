@@ -25,12 +25,14 @@ import numpy as np
 from utility import console
 from data_source import TweetsDataSource
 from classifiers.glove import GloveTraining
+from classifiers.customvocab import CustomVocabTraining
 from classifiers.utility import HParams
 
 hparams = HParams() # Hyperparameters "struct"
 hparams.batch_size = 200
 console.info("HParams:\n", hparams)
-training = GloveTraining(args.name, hparams)
+# training = GloveTraining(args.name, hparams)
+training = CustomVocabTraining(args.name, hparams)
 
 # Load data source
 data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt",

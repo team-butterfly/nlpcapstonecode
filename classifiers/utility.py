@@ -35,6 +35,8 @@ class HParams():
         self.keep_prob_in = 0.5
         self.keep_prob_out = 0.5
         self.batch_size = 128
+        self.vocab_size = 20000
+        self.embed_size = 200
  
     def __str__(self):
         return pformat(self.__dict__) 

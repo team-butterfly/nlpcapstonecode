@@ -164,9 +164,7 @@ class _GloveGraph():
 class GloveClassifier(Classifier):
 
     def __init__(self, name):
-        console.time("Read vocab")
         self.index_word, self.word_index = read_vocab("vocab.glove.txt")
-        console.time_end("Read vocab")
         self.vocab_size = len(self.index_word)
 
         ckpt = pjoin("ckpts", "glove", name)
@@ -287,7 +285,6 @@ class GloveTraining():
         *,
         num_epochs=None,
         save_interval=1,
-        plot_interval=None,
         eval_interval=None,
         progress_interval=0.01):
         """

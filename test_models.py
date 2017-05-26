@@ -69,23 +69,16 @@ if __name__ == "__main__":
 
     console.h1("UnigramClassifier")
     unigram = UnigramClassifier()
-    unigram.train(tweets.train_inputs, tweets.train_labels, max_epochs=1000)
+    unigram.train(tweets, max_epochs=1000)
     assess_classifier(unigram, tweets)
-    del unigram
     
     console.h1("EmoLexBowClassifier")
     emolex = EmoLexBowClassifier()
-    emolex.train(tweets.train_inputs, tweets.train_labels)
+    emolex.train(tweets)
     assess_classifier(emolex, tweets)
-    del emolex
 
     console.h1("GloveClassifier - Attention on Hidden States")
-    glove = GloveClassifier("attention_hiddens")
-    assess_classifier(glove, tweets)
-    glove.close()
-    del glove
+    assess_classifier(GloveClassifier("attention_hiddens"), tweets)
 
     console.h1("GloveClassifier - No Attention")
-    glove = GloveClassifier("no_attention")
-    assess_classifier(glove, tweets)
-    glove.close()
+    assess_classifier(GloveClassifier("no_attention"), tweets)
