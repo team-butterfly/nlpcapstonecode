@@ -314,11 +314,6 @@ class GloveTraining():
         eval_data = self._tokens_to_word_ids(ds.test_inputs)
         eval_labels = np.array(ds.test_labels, dtype=np.int)
 
-        # Flags to enable or disable ...
-        PLOTTING = False # Plotting attention samples.
-        SAVING   = True  # Saving model parameters at checkpoint intervals (they're huge)
-        LOGGING  = True  # Logging training progress to Tensorboard log file.
-
         # Feed dict for training steps
         train_feed = {
             self._g.use_dropout: True,
@@ -359,11 +354,7 @@ class GloveTraining():
         with tf.Session(graph=self._g.root) as sess:
             sess.run(self._g.init_op)
 
-            if LOGGING:
-                writer = tf.summary.FileWriter(self.logdir)
-                console.info("Logging to", self.logdir)
-            if SAVING:
-                console.info("Saving checkpoints to", self.ckpt_file)
+            writer = tf.summary.FileWriter(self.logdir)
 
             while True:
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
