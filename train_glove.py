@@ -5,6 +5,7 @@ import argparse
 from utility import console
 
 parser = argparse.ArgumentParser(description="Train and evaluate the GloVe LSTM model")
+parser.add_argument("--glove", action="store_true", help="Use GloVe Twitter vocabulary")
 parser.add_argument("--name", type=str, required=True, help="Name of this training instance. "
 	+ " This determines where to save Tensorboard logs and ckpts.")
 parser.add_argument("--save_interval", type=int, nargs="?", default=None, help="Save model every N epochs")
@@ -29,14 +30,22 @@ from classifiers.customvocab import CustomVocabTraining
 from classifiers.utility import HParams
 
 hparams = HParams() # Hyperparameters "struct"
-hparams.batch_size = 200
+hparams.batch_size = 200 
+hparams.vocab_size = 100000 
 console.info("HParams:\n", hparams)
-# training = GloveTraining(args.name, hparams)
-training = CustomVocabTraining(args.name, hparams)
+
+raise ValueError("I'm done")
+
+if args.glove:
+    console.info("Using GloVe vocabulary...")
+    training = GloveTraining(args.name, hparams)
+else:
+    console.info("Using custom vocabulary...")
+    training = CustomVocabTraining(args.name, hparams)
 
 # Load data source
 data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt",
-	random_seed=5, tokenizer=args.tokenizer if args.tokenizer is not None else 'tweet')
+	random_seed=5) # , tokenizer=args.tokenizer if args.tokenizer is not None else 'tweet')
 
 # Print info about the data distribution and MFC accuracy
 mfc_class = np.argmax(np.bincount(data_src.train_labels))

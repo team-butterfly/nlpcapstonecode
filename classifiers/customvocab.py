@@ -4,6 +4,7 @@ Defines a word-level LSTM with custom embeddings
 from datetime import datetime
 from os.path import join as pjoin
 from os import mkdir
+import pickle
 import numpy as np
 import tensorflow as tf
 
@@ -19,7 +20,7 @@ class _CustomVocabGraph():
 
     NUM_LABELS = len(Emotion)
 
-    def __init__(self, vocab_size, embed_size, hparams):
+    def __init__(self, hparams, init_embeddings=None):
         console.info("Building Glove graph")
 
         hp = hparams
@@ -39,11 +40,10 @@ class _CustomVocabGraph():
             self.keep_prob_in = tf.where(self.use_dropout, tf.constant(hp.keep_prob_in), ONE)
             self.keep_prob_out = tf.where(self.use_dropout, tf.constant(hp.keep_prob_out), ONE)
 
-            self.embeddings = tf.Variable(
-                # util.xavier(vocab_size, embed_size),
-                tf.truncated_normal([vocab_size, embed_size]),
-                dtype=tf.float32,
-                name="embeddings")
+            if init_embeddings is None:
+                init_embeddings = tf.random_uniform([hp.vocab_size, hp.embed_size], -1, 1) 
+
+            self.embeddings = tf.Variable(init_embeddings, dtype=tf.float32, name="embeddings")
 
             # if train_embeddings is False, stop gradient backprop at the embedded inputs.
             self.inputs_embedded = tf.nn.embedding_lookup(self.embeddings, self.inputs, max_norm=1.0)
@@ -93,7 +93,7 @@ class _CustomVocabGraph():
             # self.e = tf.reduce_sum(o[:, tf.newaxis, :] * (self.inputs_embedded * float_mask), axis=2)
             # self.e = self.e / tf.norm(o, axis=1, keep_dims=True)
 
-            scores = tf.where(mask & tf.not_equal(self.inputs, vocab_size-1), self.e, tf.ones_like(self.e) * -1E8)
+            scores = tf.where(mask, self.e, tf.ones_like(self.e) * -1E8)
 
             self.a = tf.nn.softmax(scores)
             self.x = tf.reduce_sum(tf.multiply(self.a[:, :, tf.newaxis], attn_target), axis=1)
@@ -111,7 +111,7 @@ class _CustomVocabGraph():
                 tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
                 tf.Variable(tf.zeros(self.NUM_LABELS)))
             
-            self.logits = self.logits_b
+            self.logits = self.logits_a
             self.softmax = tf.nn.softmax(self.logits)
 
             # Must cast tf.argmax to int32 because it returns int64
@@ -242,7 +242,6 @@ class CustomVocabTraining():
             console.warn("Logging or checkpoint directory already exists; choose a unique name for this training instance.")
             raise e
 
-        self._g = _CustomVocabGraph(self.hparams.vocab_size, self.hparams.embed_size, self.hparams)
 
 
     def _tokens_to_ids(self, tokens):
@@ -279,6 +278,23 @@ class CustomVocabTraining():
         ds = data_source
         self.vocab = StringStore(ds.train_inputs, self.hparams.vocab_size)
 
+        # If word is in GloVe twitter, initialize with the GloVe embedding.
+        # Otherwise, initialize with random noise.
+        n_found = 0
+        initial_embeddings = np.random.uniform(-1, 1, [self.hparams.vocab_size, self.hparams.embed_size])
+        with open("glove.dict.200d.pkl", "rb") as f:
+            glove = pickle.load(f)
+        for i, word in enumerate(self.vocab):
+            if word in glove["word_index"]:
+                idx = glove["word_index"][word]
+                glove_vec = glove["embeddings"][idx]
+                assert self.vocab.id2word(i) == word, "self.vocab[{}] got {}, want {}".format(i, self.vocab.id2word(i), word) 
+                initial_embeddings[i] = glove_vec
+                n_found += 1
+
+        console.info("{}/{} words found in GloVe".format(n_found, self.hparams.vocab_size))
+        graph = _CustomVocabGraph(self.hparams, initial_embeddings)
+
         train_inputs = self._tokens_to_ids(ds.train_inputs) 
         true_labels = np.array(ds.train_labels, dtype=np.int)
 
@@ -288,20 +304,20 @@ class CustomVocabTraining():
 
         # Feed dict for training steps
         train_feed = {
-            self._g.use_dropout: True,
-            self._g.train_embeddings: True,
-            self._g.batch_size: None, 
-            self._g.inputs: None,
-            self._g.labels: None, 
-            self._g.true_lengths: None
+            graph.use_dropout: True,
+            graph.train_embeddings: True,
+            graph.batch_size: None, 
+            graph.inputs: None,
+            graph.labels: None, 
+            graph.true_lengths: None
         }
 
         # Feed dict for evaluating on the validation set
         eval_feed = {
-            self._g.batch_size:   len(eval_inputs),
-            self._g.inputs:       util.pad_to_max_len(eval_inputs),
-            self._g.labels:       eval_labels,
-            self._g.true_lengths: util.lengths(eval_inputs)
+            graph.batch_size:   len(eval_inputs),
+            graph.inputs:       util.pad_to_max_len(eval_inputs),
+            graph.labels:       eval_labels,
+            graph.true_lengths: util.lengths(eval_inputs)
         }
 
         minibatcher = util.Minibatcher(util.Batch(train_inputs, true_labels, util.lengths(train_inputs)))
@@ -309,26 +325,26 @@ class CustomVocabTraining():
         if progress_interval is not None:
             next_progress = 0.0    
 
-        with tf.Session(graph=self._g.root) as sess:
-            sess.run(self._g.init_op)
+        with tf.Session(graph=graph.root) as sess:
+            sess.run(graph.init_op)
 
-            writer = tf.summary.FileWriter(self.logdir)
+            writer = tf.summary.FileWriter(self.logdir, flush_secs=60)
 
             while True:
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
                     break
 
                 batch = minibatcher.next(self.hparams.batch_size, pad_per_batch=True)
-                train_feed[self._g.batch_size]   = len(batch.xs)
-                train_feed[self._g.inputs]       = batch.xs
-                train_feed[self._g.labels]       = batch.ys
-                train_feed[self._g.true_lengths] = batch.lengths
+                train_feed[graph.batch_size]   = len(batch.xs)
+                train_feed[graph.inputs]       = batch.xs
+                train_feed[graph.labels]       = batch.ys
+                train_feed[graph.true_lengths] = batch.lengths
 
-                [_, cur_loss, step] = sess.run([self._g.train_op, self._g.loss, self._g.step], train_feed)
+                [_, cur_loss, step] = sess.run([graph.train_op, graph.loss, graph.step], train_feed)
 
                 # Log validation accuracy to Tensorboard file
                 if step > 0 and step % 100 == 0:
-                    summary = sess.run(self._g.merged, eval_feed)
+                    summary = sess.run(graph.merged, eval_feed)
                     writer.add_summary(summary, step)
 
                 # At end of each epoch, maybe save and report some metrics
@@ -339,14 +355,14 @@ class CustomVocabTraining():
                         next_progress = 0.0    
 
                     if save_interval is not None and minibatcher.cur_epoch % save_interval == 0:
-                        saved_path = self._g.saver.save(sess, self.ckpt_file, global_step=self._g.step, write_meta_graph=True)
+                        saved_path = graph.saver.save(sess, self.ckpt_file, global_step=graph.step, write_meta_graph=True)
                         console.log(
                             console.colors.GREEN + console.colors.BRIGHT
                             + "{}\tCheckpoint saved to {}".format(datetime.now(), saved_path)
                             + console.colors.END)
 
                     if eval_interval is not None and minibatcher.cur_epoch % eval_interval == 0:
-                        eval_pred = sess.run(self._g.labels_predicted, eval_feed)
+                        eval_pred = sess.run(graph.labels_predicted, eval_feed)
                         eval_acc = np.equal(eval_pred, eval_labels).mean()
                         console.log("eval accuracy: {:.5f}".format(eval_acc))
 

@@ -55,6 +55,9 @@ class StringStore():
         """Return a list of known symbols."""
         return self._id2w.copy()
 
+    def __iter__(self):
+        return iter(self._id2w)
+
     def word2id(self, word):
         """Return an integer ID for word. Word may be unk."""
         if word not in self._w2id:

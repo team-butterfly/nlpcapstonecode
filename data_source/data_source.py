@@ -112,6 +112,7 @@ class TweetsDataSource(object):
         # Use numpy arrays for faster indexing
         self._labels = np.array([self._emotion_index[emotion] for emotion in emotions])
         self._inputs = np.array(self._inputs)
+        self._raw_inputs = np.array(self._raw_inputs)
 
         num_test = int(round(len(self._inputs) * pct_test))
 
