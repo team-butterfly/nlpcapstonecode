@@ -13,6 +13,7 @@ import classifiers.utility as util
 from utility import console, Emotion
 from utility.strings import read_vocab, StringStore
 from data_source import TweetsDataSource
+from data_source.tokenize import tokenize_tweet
 from .classifier import Classifier
 
 
@@ -244,11 +245,6 @@ class CustomVocabTraining():
 
 
 
-    def _tokens_to_ids(self, tokens):
-        return np.array([
-            np.array([self.vocab.word2id(word) for word in sent], dtype=str)
-            for sent in tokens],
-            dtype=object)
 
 
     def run(
@@ -276,8 +272,10 @@ class CustomVocabTraining():
         """
 
         ds = data_source
-        self.vocab = StringStore(ds.train_inputs, self.hparams.vocab_size)
+        self.vocab = StringStore(map(tokenize_tweet, ds.train_raw_inputs), self.hparams.vocab_size)
+        initial_embeddings = None
 
+        """
         # If word is in GloVe twitter, initialize with the GloVe embedding.
         # Otherwise, initialize with random noise.
         n_found = 0
@@ -291,15 +289,20 @@ class CustomVocabTraining():
                 assert self.vocab.id2word(i) == word, "self.vocab[{}] got {}, want {}".format(i, self.vocab.id2word(i), word) 
                 initial_embeddings[i] = glove_vec
                 n_found += 1
-
         console.info("{}/{} words found in GloVe".format(n_found, self.hparams.vocab_size))
+        """
+
         graph = _CustomVocabGraph(self.hparams, initial_embeddings)
 
-        train_inputs = self._tokens_to_ids(ds.train_inputs) 
+        def sent_to_ids(corpus):
+            return np.array([
+                np.fromiter(map(self.vocab.word2id, tokenize_tweet(sent)), dtype=int) for sent in corpus],
+                dtype=np.ndarray)
+        train_inputs = sent_to_ids(ds.train_raw_inputs) 
         true_labels = np.array(ds.train_labels, dtype=np.int)
 
         # Validation data
-        eval_inputs = self._tokens_to_ids(ds.test_inputs)
+        eval_inputs = sent_to_ids(ds.test_raw_inputs)
         eval_labels = np.array(ds.test_labels, dtype=np.int)
 
         # Feed dict for training steps
