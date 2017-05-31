@@ -8,6 +8,8 @@ import numpy as np
 
 from utility import console, Emotion
 
+from .tokenize import tokenize_tweet
+
 from nltk.tokenize.casual import TweetTokenizer
 from nltk.tokenize.moses import MosesTokenizer
 from nltk.tokenize.repp import ReppTokenizer
@@ -18,7 +20,7 @@ from nltk.tokenize import wordpunct_tokenize
 # e.g. ds = TweetsDataSource(file_glob="data/tweets.v3.*.txt", random_seed=5)
 class TweetsDataSource(object):
 
-    _default_tokenizer = TweetTokenizer()
+    _tweet_tokenizer = TweetTokenizer()
 
     def _clean_text(text, escape_unicode=False):
         if escape_unicode:
@@ -34,7 +36,7 @@ class TweetsDataSource(object):
         return text
 
     def _default_tokenize(sent):
-        return TweetsDataSource._default_tokenizer.tokenize(sent)
+        return TweetsDataSource._tweet_tokenizer.tokenize(sent)
 
     def __init__(self, *args, **kwargs):
         pct_test = 0.10
@@ -62,6 +64,8 @@ class TweetsDataSource(object):
                 tokenize = MosesTokenizer().tokenize
             elif kwargs['tokenizer'] == 'tweet':
                 tokenize = TweetTokenizer().tokenize
+            elif kwargs['tokenizer'] == 'ours':
+                tokenize = tokenize_tweet
 
         self.tokenize = tokenize # Make this public for classifiers, etc.
 

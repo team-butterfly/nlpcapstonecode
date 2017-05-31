@@ -16,16 +16,18 @@ class UnigramClassifier(Classifier):
     """
     def __init__(self, vocab_size=20000):
         """
-        Parameters:
-            `unk_threshold` if a token appears less than this many times,
-                it is not added to the classifer's vocabulary
+        Args:
+            `vocab_size` a hard limit on vocabulary size
         """
         self._num_labels = len(Emotion)
         self._vocab_size = vocab_size
 
     def _encode_sentences(self, sentences):
         """Convert a list of token sequences into a matrix of unigram counts."""
-        return np.array([self._stringstore.count_vector(sent) for sent in sentences])
+        out = np.empty([len(sentences), len(self._stringstore)], dtype=np.float32)
+        for i, sent in enumerate(sentences):
+            out[i] = self._stringstore.count_vector(sent)
+        return out
 
     def train(self, data_source, max_epochs=1000):
         """
@@ -37,7 +39,7 @@ class UnigramClassifier(Classifier):
 
         # First, set up the vocabulary and such
         sentences = data_source.train_inputs
-        self._stringstore = StringStore(data_source.train_inputs, self._vocab_size)
+        self._stringstore = StringStore(sentences, self._vocab_size)
         self._vocab_size = len(self._stringstore)
 
         console.log("UnigramClassifier.train: vocabulary size is", self._vocab_size)

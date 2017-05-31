@@ -113,6 +113,27 @@ class _CustomVocabGraph():
                 tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
                 tf.Variable(tf.zeros(self.NUM_LABELS)))
             
+            # Direct sum of attention and non-attention vectors
+            self.logits_c = tf.nn.xw_plus_b(self.concat_final_states + self.x,
+                tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
+                tf.Variable(tf.zeros(self.NUM_LABELS)))
+
+            # Weighted sum of attention and non-attention vectors
+            weighted = lambda t: t * tf.Variable(tf.random_uniform([hp.hidden_size*2]))
+            self.logits_d = tf.nn.xw_plus_b(
+                weighted(self.concat_final_states) + weighted(self.x),
+                tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
+                tf.Variable(tf.zeros(self.NUM_LABELS)))
+
+            # Attention with extra hidden layer
+            self.logits_e = tf.nn.xw_plus_b(
+                tf.nn.xw_plus_b(
+                    self.x,
+                    tf.Variable(util.xavier(hp.hidden_size*2, 64)),
+                    tf.Variable(tf.zeros(64))),
+                tf.Variable(util.xavier(64, self.NUM_LABELS)),
+                tf.Variable(tf.zeros(self.NUM_LABELS)))
+
             self.logits = self.logits_a
             self.softmax = tf.nn.softmax(self.logits)
 

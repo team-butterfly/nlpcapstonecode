@@ -65,7 +65,7 @@ class RawInputsWrapper():
 
 
 if __name__ == "__main__":
-    tweets = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5, tokenizer="word")
+    tweets = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5, tokenizer="ours")
 
     console.h1("UnigramClassifier")
     unigram = UnigramClassifier()
