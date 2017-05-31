@@ -4,6 +4,7 @@ Defines a word-level LSTM with custom embeddings
 from datetime import datetime
 from os.path import join as pjoin
 from os import mkdir
+from shutil import rmtree
 import pickle
 import numpy as np
 import tensorflow as tf
@@ -152,6 +153,8 @@ class _CustomVocabGraph():
 class CustomVocabClassifier(Classifier):
 
     def __init__(self, name):
+        raise NotImplementedError()
+
         self.index_word, self.word_index = read_vocab("vocab.{}.txt".format(name))
         self.vocab_size = len(self.index_word)
 
@@ -220,31 +223,11 @@ class CustomVocabClassifier(Classifier):
         self._sess.close()
 
 
-class CustomVocabTraining():
+class CustomVocabTraining(util.TrainingSession):
 
-    def __init__(self, name, hparams):
-        """
-        Prepares a training session by making the log/checkpoint directories:
-        * Log dir:        log/customvocab/<name>
-        * Checkpoint dir: ckpts/customvocab/<name>
-        * Checkpoint file ckpts/customvocab/<name>/<name>
-        """
-        self.name = name
+    def __init__(self, run_name, hparams):
+        super().__init__("customvocab", run_name)
         self.hparams = hparams
-        try:
-            self.logdir = pjoin("log", "customvocab", name)
-            ckpt_dir = pjoin("ckpts", "customvocab", name)
-            console.log("Making logdir", self.logdir)
-            console.log("Making checkpoint dir", ckpt_dir)
-            mkdir(self.logdir)
-            mkdir(ckpt_dir)
-            self.ckpt_file = pjoin(ckpt_dir, name)
-        except FileExistsError as e:
-            console.warn("Logging or checkpoint directory already exists; choose a unique name for this training instance.")
-            raise e
-
-
-
 
 
     def run(

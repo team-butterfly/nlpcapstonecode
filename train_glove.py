@@ -15,7 +15,6 @@ parser.add_argument("--num_epochs", type=int, nargs="?", default=None, help="Num
 parser.add_argument("--tokenizer", type=str, required=False, help="Tokenize function")
 args = parser.parse_args()
 
-console.info("Run name:", args.name)
 if args.save_interval is not None:
 	console.info(
 		"Will save every {} epochs for {} epochs".format(
@@ -29,12 +28,12 @@ from classifiers.glove import GloveTraining
 from classifiers.customvocab import CustomVocabTraining
 from classifiers.utility import HParams
 
+console.info("Run name:", args.name)
 hparams = HParams() # Hyperparameters "struct"
 hparams.batch_size = 200 
-hparams.vocab_size = 100000 
+hparams.vocab_size = 50000 
 console.info("HParams:\n", hparams)
 
-raise ValueError("I'm done")
 
 if args.glove:
     console.info("Using GloVe vocabulary...")
@@ -55,6 +54,18 @@ mfc_acc_test  = np.equal(mfc_class, data_src.test_labels).mean()
 console.info("Train mfc:", mfc_acc_train)
 console.info("Test mfc:", mfc_acc_test)
 
+run_name = args.name
 del args.name
+del args.glove
 del args.tokenizer
-training.run(data_src, **vars(args))
+
+try:
+    training.run(data_src, **vars(args))
+except:
+    console.log("\nTraining interrupted. Save this session (y/n)? ")
+    if input().startswith("y"):
+        with open("log/runs.txt", "a") as logf:
+            logf.write(run_name + ":\n")
+            logf.write(str(hparams))
+    else:
+        training.erase_files()

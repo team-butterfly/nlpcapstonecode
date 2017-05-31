@@ -2,9 +2,12 @@
 Utilities for classifiers 
 """
 from pprint import pformat
+from os.path import join as pjoin
+from os import mkdir
+from shutil import rmtree
 import numpy as np
 import tensorflow as tf
-from utility import Emotion
+from utility import console, Emotion
 
 
 def pad_to_max_len(xs):
@@ -24,6 +27,35 @@ def xavier(size_in, size_out):
     return tf.random_uniform((size_in, size_out), minval=-d, maxval=d)
 
 
+class TrainingSession():
+
+    def __init__(self, model_name, run_name):
+        """
+        Prepares a training session by making the log/checkpoint directories:
+        * Log dir:        log/<model-name>/<run-name>
+        * Checkpoint dir: ckpts/<model-name>/<run-name>
+        * Checkpoint file ckpts/<model-name>/<run-name>/<run-name>
+        """
+        try:
+            self.logdir = pjoin("log", model_name, run_name)
+            self.ckptdir = pjoin("ckpts", model_name, run_name)
+            self.ckpt_file = pjoin(self.ckptdir, run_name)
+            console.log("Making logdir", self.logdir)
+            console.log("Making checkpoint dir", self.ckptdir)
+            mkdir(self.logdir)
+            mkdir(self.ckptdir)
+        except FileExistsError:
+            console.warn("Logging or checkpoint directory already exists; "
+                         + "choose a unique name for this training instance.")
+            raise
+
+    def erase_files(self):
+        console.log("Removing logdir", self.logdir)
+        console.log("Removing checkpoint dir", self.ckptdir)
+        rmtree(self.logdir)
+        rmtree(self.ckptdir)
+
+
 class HParams():
     """
     Hyperparameters 'struct'
@@ -40,7 +72,6 @@ class HParams():
  
     def __str__(self):
         return pformat(self.__dict__) 
-
 
 
 class Batch():

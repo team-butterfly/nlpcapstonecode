@@ -233,47 +233,24 @@ class GloveClassifier(Classifier):
         self._sess.close()
 
 
-class GloveTraining():
+class GloveTraining(util.TrainingSession):
 
-    def __init__(self, name, hparams):
-        """
-        Prepares a training session by making the log/checkpoint directories and restoring the model.
-        * Log dir:        log/glove/<name>
-        * Checkpoint dir: ckpts/glove/<name>
-        * Checkpoint file ckpts/glove/<name>/<name>
-        """
-        self.name = name
+    def __init__(self, run_name, hparams):
+        super().__init__("glove", run_name)
+
         self.hp = hparams
-        try:
-            self.logdir = pjoin("log", "glove", name)
-            ckpt_dir = pjoin("ckpts", "glove", name)
-            console.log("Making logdir", self.logdir)
-            console.log("Making checkpoint dir", ckpt_dir)
-            mkdir(self.logdir)
-            mkdir(ckpt_dir)
-            self.ckpt_file = pjoin(ckpt_dir, name)
-        except FileExistsError as e:
-            console.warn("Logging or checkpoint directory already exists; choose a unique name for this training instance.")
-            raise e
-
         with open("glove.dict.200d.pkl", "rb") as f:
             self._glove = pickle.load(f)
         self._g = _GloveGraph(self._glove["vocab_size"], 200, self._glove["embeddings"], self.hp)
 
     def _tokens_to_word_ids(self, input_tokens):
-        oov = tot = 0
         def lookup(word):
-            nonlocal oov, tot
             word = word.lower()
-            if word not in self._glove["word_index"]:
-                oov += 1
-            tot += 1
             return self._glove["word_index"].get(word, self._glove["vocab_size"])
 
         wordids = np.zeros(len(input_tokens), dtype=object)
         for i, sentence in enumerate(input_tokens):
             wordids[i] = np.fromiter((lookup(w) for w in sentence), dtype=np.int, count=len(sentence))
-        console.info("GloveTraining: found {} OOV words ({:.2f}%)".format(oov, oov / tot * 100.0))
         return wordids
 
     def _unwordids(self, ids):
