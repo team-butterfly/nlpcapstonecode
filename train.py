@@ -59,13 +59,17 @@ del args.name
 del args.glove
 del args.tokenizer
 
+def log_hparams():
+    with open("log/runs.txt", "a") as logf:
+        logf.write(run_name + ":\n")
+        logf.write(str(hparams))
+
 try:
     training.run(data_src, **vars(args))
+    log_hparams()
 except:
     console.log("\nTraining interrupted. Save this session (y/n)? ")
     if input().startswith("y"):
-        with open("log/runs.txt", "a") as logf:
-            logf.write(run_name + ":\n")
-            logf.write(str(hparams))
+        log_hparams()
     else:
         training.erase_files()
