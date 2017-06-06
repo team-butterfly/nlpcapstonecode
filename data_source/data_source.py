@@ -55,7 +55,7 @@ class TweetsDataSource(object):
         tokenize = TweetsDataSource._default_tokenize
         if 'tokenizer' in kwargs:
             if kwargs['tokenizer'] == 'split':
-                tokenize = lambda s: return s.split()
+                tokenize = lambda s: s.split()
             elif kwargs['tokenizer'] == 'wordpunct':
                 tokenize = wordpunct_tokenize
             elif kwargs['tokenizer'] == 'word':
