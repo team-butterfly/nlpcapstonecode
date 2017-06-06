@@ -352,6 +352,7 @@ class CustomVocabTraining(util.TrainingSession):
                 [_, cur_loss, step] = sess.run([graph.train_op, graph.loss, graph.step], train_feed)
 
                 # Log validation accuracy to Tensorboard file
+                # Calculate test accuracy in chunks of 1000 to prevent GPU OOM.
                 if step > 0 and step % 100 == 0:
                     ns_correct = []
                     total_loss = 0
@@ -371,6 +372,7 @@ class CustomVocabTraining(util.TrainingSession):
 
                     accuracy = sum(ns_correct) / len(eval_inputs)
                     console.log("Eval accuracy: {:.5f}".format(accuracy))
+
                     summary = tf.Summary()
                     summary.value.add(tag="Accuracy", simple_value=accuracy)
                     writer.add_summary(summary, step)
