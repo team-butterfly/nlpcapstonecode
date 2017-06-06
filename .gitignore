@@ -9,3 +9,4 @@ plots
 ckpts
 tts/credentials.py
 demo/static/audio
+/tweets.v3.*.txt
