@@ -31,6 +31,8 @@ class _GloveGraph():
         self.root = tf.Graph()
 
         with self.root.as_default():
+            tf.set_random_seed(3)
+
             # Model inputs
             self.batch_size   = tf.placeholder(tf.int32, name="batch_size")
             self.inputs       = tf.placeholder(tf.int32, [None, None], name="inputs")
