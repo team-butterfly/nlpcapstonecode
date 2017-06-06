@@ -19,14 +19,17 @@ while True:
     if sent.rstrip() == "":
         continue
     
-    sent = ds.tokenize(sent)
     tokens, soft_labels, attns = g.predict_soft_with_attention([sent])[0]
+
+    print("tokens is", tokens)
+    print("softlabels is", soft_labels)
+    print("attens is", attns)
     
     # Print tokens with attention
     print("Attention:")
     maxlen = max(len(t) for t in tokens)
     form = "    {{:{}s}} {{:.2f}}%".format(maxlen)
-    for tok, attn in zip(tokens, attns):
+    for tok, attn in zip(sent.split(), attns):
         print(form.format(tok, attn * 100))
 
     print("Predictions:")

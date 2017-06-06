@@ -9,17 +9,19 @@ from utility import console, Emotion
 console.log()
 console.h1("Initializing Server")
 
-from classifiers import GloveClassifier as Classifier
+from classifiers import CustomVocabClassifier as Classifier
 from tts import IBMTTS as TTS
 
 app = Flask(__name__)
-lstm = Classifier()
+lstm = Classifier("try1")
 tts = TTS()
 
-def say(text, emotion):
+def say(text, emotion, attention=None):
     output_path = "demo/static/audio/" + tts.as_file_path(text) + datetime.datetime.now().strftime("%s") + ".ogg"
-    output_path = tts.speak(text, emotion, output_path)
-
+    if attention is None:
+        output_path = tts.speak(text, emotion, output_path)
+    else:
+        output_path = tts.speak_with_modulation(text, emotion, output_path, attention)
     return output_path
     # os.system("ffplay '{}' || play '{}'".format(output_path, output_path, output_path))
 
@@ -38,16 +40,18 @@ def audio(f):
 
 @app.route("/classify/<text>")
 def classify(text):
+    console.log("text is ", text)
     tokens, classifications, attention = lstm.predict_soft_with_attention([text])[0]
+    console.log("tokens are", tokens, "attention is", attention)
     console.debug("classifications:", classifications)
     maxEmotion = max(classifications, key=classifications.get)
     console.debug("best:", maxEmotion)
-    output_path = say(text, maxEmotion)
+    output_path = say(text, maxEmotion, attention)
     output_classifications = { i.name : str(classifications[i]) for i in classifications }
     output = {
         "tokens" : tokens,
         "classifications" : output_classifications,
-        "attention" : attention.tolist(),
+        "attention" : attention,
         "audio_path" : url_for('static', filename=os.path.relpath(output_path, "demo/static/"))
     }
     console.debug("output is ", output)

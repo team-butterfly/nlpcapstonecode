@@ -1,4 +1,4 @@
-from data_source.tokenize import tokenize_tweet
+from data_source.tokenize import tokenize_tweet, wrapper
 from data_source import TweetsDataSource
 from collections import Counter
 from utility import console
@@ -52,6 +52,7 @@ def summary():
     return vocab
 
 
+
 def test():
     cases = [
         (
@@ -94,8 +95,25 @@ def test():
         else:
             console.log(console.colors.GREEN + "OK: ", desc, console.colors.END)
             return True
+
+
+    def compare(case):
+        desc, tweet, want = case
+        desc += " are the same?"
+        v1 = tokenize_tweet(tweet)
+        v2, _ = wrapper(tweet)
+        if v1 != v2:
+            console.warn("FAIL:", desc)
+            console.warn("Got", v2)
+            console.warn("Want", v1)
+            return False
+        else:
+            console.log(console.colors.GREEN + "OK: ", desc, console.colors.END)
+            return True
     
     for case in cases:
         run_case(case)
+    for case in cases:
+        compare(case)
 
 test()

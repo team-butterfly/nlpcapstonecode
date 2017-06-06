@@ -24,6 +24,7 @@ def apostrophe(match):
     return " ".join(match.group(1, 2, 3))
 
 
+
 def tokenize_tweet(text):
     # Different regex parts for smiley faces
     eyes = r"[8:=;]"
@@ -63,3 +64,13 @@ def tokenize_tweet(text):
     text = re_sub(r"\bl+o+l+(?:o+l+)*\b", r"lol")
 
     return text.split()
+
+def wrapper(tweet):
+    words = tweet.split()
+    tokens = []
+    mapping = []
+    for i, word in enumerate(words):
+        for token in tokenize_tweet(word):
+            tokens.append(token)
+            mapping.append(i)
+    return tokens, mapping

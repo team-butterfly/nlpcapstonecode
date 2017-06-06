@@ -14,7 +14,7 @@ import classifiers.utility as util
 from utility import console, Emotion
 from utility.strings import read_vocab, write_vocab, StringStore
 from data_source import TweetsDataSource
-from data_source.tokenize import tokenize_tweet
+from data_source.tokenize import tokenize_tweet, wrapper
 from .classifier import Classifier
 
 
@@ -23,7 +23,7 @@ class _CustomVocabGraph():
     NUM_LABELS = len(Emotion)
 
     def __init__(self, hparams, init_embeddings=None):
-        console.info("Building Glove graph")
+        console.info("Building TF graph")
 
         hp = hparams
         self.root = tf.Graph()
@@ -166,9 +166,6 @@ class _CustomVocabGraph():
             tf.add_to_collection("softmax", self.softmax)
             tf.add_to_collection("attention", self.a) # Attention weights
 
-            tf.summary.scalar("accuracy", self.accuracy)
-            tf.summary.scalar("loss", self.loss)
-            self.merged = tf.summary.merge_all()
 
 
 class CustomVocabClassifier(Classifier):
@@ -176,6 +173,8 @@ class CustomVocabClassifier(Classifier):
     def __init__(self, name):
         self.index_word, self.word_index = read_vocab("ckpts/customvocab/{}/{}.vocab".format(name, name))
         self.vocab_size = len(self.index_word)
+
+        self.data_src = TweetsDataSource(tokenizer="ours")
 
         ckpt = pjoin("ckpts", "customvocab", name)
         latest = tf.train.latest_checkpoint(ckpt)
@@ -225,17 +224,24 @@ class CustomVocabClassifier(Classifier):
         return self._sess.run(self.softmax, feed)
 
     
-    def predict_soft_with_attention(self, tokens):
+    def predict_soft_with_attention(self, sentences):
+        tokens = []
+        maps = []
+        for t, m in map(wrapper, sentences):
+            tokens.append(t)
+            maps.append(m)
+
         feed = self._make_feed(tokens)
-        [soft_labels, attns] = self._sess.run([self.softmax, self.attention], feed)
+        [soft_labels, tok_attns] = self._sess.run([self.softmax, self.attention], feed)
 
         data = []
-        for i in range(len(tokens)):
+        for i in range(len(sentences)):
             emos = {emo: soft_labels[i][emo.value] for emo in (Emotion.SADNESS, Emotion.ANGER, Emotion.JOY)}
-            num_words = feed[self.true_lengths][i]
-            tokens = feed[self.inputs][i][:num_words]
-            tokens = self._unwordids(tokens)
-            data.append((tokens, emos, attns[i][:num_words]))
+            
+            word_attn = [0 for _ in range(maps[i][-1] + 1)]
+            for tok_i, word_i in enumerate(maps[i]):
+                word_attn[word_i] += tok_attns[i][tok_i]
+            data.append((sentences[i].split(), emos, word_attn))
         return data 
 
     def close(self):
@@ -317,13 +323,6 @@ class CustomVocabTraining(util.TrainingSession):
             graph.true_lengths: None
         }
 
-        # Feed dict for evaluating on the validation set
-        eval_feed = {
-            graph.batch_size:   len(eval_inputs),
-            graph.inputs:       util.pad_to_max_len(eval_inputs),
-            graph.labels:       eval_labels,
-            graph.true_lengths: util.lengths(eval_inputs)
-        }
 
         minibatcher = util.Minibatcher(util.Batch(train_inputs, true_labels, util.lengths(train_inputs)))
 
@@ -333,6 +332,11 @@ class CustomVocabTraining(util.TrainingSession):
         with tf.Session(graph=graph.root) as sess:
             sess.run(graph.init_op)
 
+            stats = [
+                tf.summary.scalar("accuracy", graph.accuracy),
+                tf.summary.scalar("loss", graph.loss)
+            ]
+            self.merged = tf.summary.merge(stats)
             writer = tf.summary.FileWriter(self.logdir, flush_secs=60)
 
             while True:
@@ -349,7 +353,26 @@ class CustomVocabTraining(util.TrainingSession):
 
                 # Log validation accuracy to Tensorboard file
                 if step > 0 and step % 100 == 0:
-                    summary = sess.run(graph.merged, eval_feed)
+                    ns_correct = []
+                    total_loss = 0
+                    for idx in range(0, len(eval_inputs), 1000):
+                        chunk_input = eval_inputs[idx : idx + 1000]
+                        chunk_labels = eval_labels[idx : idx + 1000]
+                        eval_feed = {
+                            graph.batch_size:   len(chunk_input),
+                            graph.inputs:       util.pad_to_max_len(chunk_input),
+                            graph.labels:       chunk_labels,
+                            graph.true_lengths: util.lengths(chunk_input)
+                        }
+                        [loss_i, preds_i] = sess.run([graph.loss, graph.labels_predicted], eval_feed)
+                        
+                        ns_correct.append(np.equal(preds_i, chunk_labels).sum())
+                        total_loss += loss_i
+
+                    accuracy = sum(ns_correct) / len(eval_inputs)
+                    console.log("Eval accuracy: {:.5f}".format(accuracy))
+                    summary = tf.Summary()
+                    summary.value.add(tag="Accuracy", simple_value=accuracy)
                     writer.add_summary(summary, step)
 
                 # At end of each epoch, maybe save and report some metrics
@@ -371,11 +394,6 @@ class CustomVocabTraining(util.TrainingSession):
                             console.colors.GREEN + console.colors.BRIGHT
                             + "{}\tVocab saved to {}".format(datetime.now(), self.vocab_file)
                             + console.colors.END)
-
-                    if eval_interval is not None and minibatcher.cur_epoch % eval_interval == 0:
-                        eval_pred = sess.run(graph.labels_predicted, eval_feed)
-                        eval_acc = np.equal(eval_pred, eval_labels).mean()
-                        console.log("eval accuracy: {:.5f}".format(eval_acc))
 
                 # Not a new epoch - print some stuff to report progress
                 elif progress_interval is not None and minibatcher.epoch_progress >= next_progress:

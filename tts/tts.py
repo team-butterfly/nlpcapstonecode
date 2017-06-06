@@ -6,6 +6,12 @@ import warnings
 import skimage.io as io
 import re
 import requests
+import json
+from utility import console
+import threading
+import subprocess
+from aeneas.tools.execute_task import ExecuteTaskCLI
+
 
 import tts.credentials as credentials
 from utility import console, Emotion
@@ -156,4 +162,38 @@ class IBMTTS(TTS):
             for data in response.iter_content(2048):
                 output.write(data)
         console.debug("Wrote to", output_path)
+        return output_path
+    def modulate(self, audio_path, text_path, attention):
+        json_path = text_path + ".json"
+        def runCli():
+            cli = ExecuteTaskCLI()
+            cli.run(arguments=["", audio_path, text_path, "task_language=eng|os_task_file_format=json|is_text_type=plain", json_path])
+        task = threading.Thread(target=runCli)
+        task.start()
+        task.join()
+
+        audio, sample_rate = librosa.load(audio_path, mono=True)
+        output_audio_path = audio_path + ".wav"
+
+        with open(json_path) as mapping_file:
+            mapping = json.load(mapping_file)
+        word_positions = [(float(x["begin"]), float(x["end"])) for x in mapping["fragments"]]
+        total_time = audio.shape[0] / sample_rate
+        for i in range(0, len(word_positions)):
+            word_position = word_positions[i]
+            scale = 2 * attention[i] / sum(attention) + 1.0
+            start = int(word_position[0] / total_time * audio.shape[0])
+            end = int(word_position[1] / total_time * audio.shape[0])
+            audio[start:end] *= scale
+        librosa.output.write_wav(output_audio_path, audio, sample_rate, norm=True)
+        console.info("Transcoding to ogg")
+        subprocess.call(["ffmpeg","-y", "-i", output_audio_path, audio_path])
+        console.info("Wrote modulated audio to", audio_path)
+        return audio_path
+    def speak_with_modulation(self, text, emotion, output_path, attention):
+        output_path = self.speak(text, emotion, output_path)
+        text_file_path = "/tmp/" + self.as_file_path(text) + ".txt"
+        with open(text_file_path, "w") as text_file:
+            text_file.write("\n".join(text.split()))
+        output_path = self.modulate(output_path, text_file_path, attention)
         return output_path

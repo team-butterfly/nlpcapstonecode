@@ -1,7 +1,11 @@
 """
 Prints performance metrics of various models.
 """
-from classifiers import UnigramClassifier, LstmClassifier, EmoLexBowClassifier, GloveClassifier
+from classifiers import UnigramClassifier
+from classifiers import LstmClassifier
+from classifiers import EmoLexBowClassifier
+from classifiers import GloveClassifier
+from classifiers import CustomVocabClassifier 
 from data_source import TweetsDataSource
 from utility import console, Emotion
 import numpy as np
@@ -56,14 +60,6 @@ def assess_classifier(classifier, data_src):
         mfc_class)
 
 
-class RawInputsWrapper():
-    def __init__(self, data_src):
-        self.train_inputs = data_src.train_raw_inputs
-        self.train_labels = data_src.train_labels
-        self.test_inputs = data_src.test_raw_inputs
-        self.test_labels = data_src.test_labels
-
-
 if __name__ == "__main__":
     tweets = TweetsDataSource(file_glob="data/tweets.v3.part*.txt", random_seed=5, tokenizer="ours")
 
@@ -77,8 +73,6 @@ if __name__ == "__main__":
     emolex.train(tweets)
     assess_classifier(emolex, tweets)
 
-    console.h1("GloveClassifier - Attention on Hidden States")
-    assess_classifier(GloveClassifier("attention_hiddens"), tweets)
-
-    console.h1("GloveClassifier - No Attention")
-    assess_classifier(GloveClassifier("no_attention"), tweets)
+    console.h1("Big LSTM thingy")
+    lstm = CustomVocabClassifier("try1")
+    assess_classifier(lstm, tweets)

@@ -62,12 +62,13 @@ del args.tokenizer
 def log_hparams():
     with open("log/runs.txt", "a") as logf:
         logf.write(run_name + ":\n")
-        logf.write(str(hparams))
+        logf.write(str(hparams) + "\n")
 
 try:
     training.run(data_src, **vars(args))
     log_hparams()
-except:
+except Exception as e:
+    console.warn(e)
     console.log("\nTraining interrupted. Save this session (y/n)? ")
     if input().startswith("y"):
         log_hparams()
