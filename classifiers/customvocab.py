@@ -12,7 +12,7 @@ import tensorflow as tf
 import classifiers.utility as util
 
 from utility import console, Emotion
-from utility.strings import read_vocab, StringStore
+from utility.strings import read_vocab, write_vocab, StringStore
 from data_source import TweetsDataSource
 from data_source.tokenize import tokenize_tweet
 from .classifier import Classifier
@@ -174,9 +174,7 @@ class _CustomVocabGraph():
 class CustomVocabClassifier(Classifier):
 
     def __init__(self, name):
-        raise NotImplementedError()
-
-        self.index_word, self.word_index = read_vocab("vocab.{}.txt".format(name))
+        self.index_word, self.word_index = read_vocab("ckpts/customvocab/{}/{}.vocab".format(name, name))
         self.vocab_size = len(self.index_word)
 
         ckpt = pjoin("ckpts", "customvocab", name)
@@ -366,6 +364,12 @@ class CustomVocabTraining(util.TrainingSession):
                         console.log(
                             console.colors.GREEN + console.colors.BRIGHT
                             + "{}\tCheckpoint saved to {}".format(datetime.now(), saved_path)
+                            + console.colors.END)
+
+                        write_vocab(self.vocab.vocab(), self.vocab_file)
+                        console.log(
+                            console.colors.GREEN + console.colors.BRIGHT
+                            + "{}\tVocab saved to {}".format(datetime.now(), self.vocab_file)
                             + console.colors.END)
 
                     if eval_interval is not None and minibatcher.cur_epoch % eval_interval == 0:

@@ -35,11 +35,13 @@ class TrainingSession():
         * Log dir:        log/<model-name>/<run-name>
         * Checkpoint dir: ckpts/<model-name>/<run-name>
         * Checkpoint file ckpts/<model-name>/<run-name>/<run-name>
+        * Vocab file:     ckpts/<model-name>/<run-name>.vocab
         """
         try:
             self.logdir = pjoin("log", model_name, run_name)
             self.ckptdir = pjoin("ckpts", model_name, run_name)
             self.ckpt_file = pjoin(self.ckptdir, run_name)
+            self.vocab_file = pjoin(self.ckptdir, "{}.vocab".format(run_name))
             console.log("Making logdir", self.logdir)
             console.log("Making checkpoint dir", self.ckptdir)
             mkdir(self.logdir)

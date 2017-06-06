@@ -6,8 +6,9 @@ from collections import Counter
 import numpy as np
 from . import console
 
-def read_vocab(fn):
-    with open(fn, "r") as f:
+
+def read_vocab(path):
+    with open(path, "r") as f:
         lines = f.readlines()
         index_word = np.empty(len(lines), dtype="<U64")
         word_index = {}
@@ -17,12 +18,20 @@ def read_vocab(fn):
             word_index[word] = i
         return index_word, word_index
 
+
+def write_vocab(vocab, path):
+    """vocab: array-like list of words, path: where to save"""
+    with open(path, "w") as f:
+        for word in vocab:
+            f.write(word + "\n")
+
+
 class StringStore():
     """
     StringStore remembers integer IDs for each unique string in an iterable.
     Ignores case.
     """
-    
+
     _UNK = "<unk>"
 
     def __init__(self, sentences, limit, use_tfidf=False):
