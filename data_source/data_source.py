@@ -54,7 +54,9 @@ class TweetsDataSource(object):
 
         tokenize = TweetsDataSource._default_tokenize
         if 'tokenizer' in kwargs:
-            if kwargs['tokenizer'] == 'wordpunct':
+            if kwargs['tokenizer'] == 'split':
+                tokenize = lambda s: s.split()
+            elif kwargs['tokenizer'] == 'wordpunct':
                 tokenize = wordpunct_tokenize
             elif kwargs['tokenizer'] == 'word':
                 tokenize = word_tokenize
@@ -90,7 +92,7 @@ class TweetsDataSource(object):
                 new_inputs = [TweetsDataSource._clean_text(tweet['text'].strip()) for tweet in tweets]
                 new_emotions = [Emotion[tweet['tag']] for tweet in tweets]
                 self._raw_inputs += new_inputs
-                self._inputs += [text.split() for text in new_inputs]
+                self._inputs += [tokenize(text) for text in new_inputs]
             elif lines[0].rstrip() == 'v.4/21':
                 lines = lines[1:]
                 tweets = [json.loads(line.rstrip()) for line in lines]
