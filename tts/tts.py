@@ -175,6 +175,7 @@ class IBMTTS(TTS):
         audio, sample_rate = librosa.load(audio_path, mono=True)
         output_audio_path = audio_path + ".wav"
 
+        librosa.output.write_wav(audio_path + "_unmodulated.wav", audio, sample_rate, norm=True)
         with open(json_path) as mapping_file:
             mapping = json.load(mapping_file)
         word_positions = [(float(x["begin"]), float(x["end"])) for x in mapping["fragments"]]

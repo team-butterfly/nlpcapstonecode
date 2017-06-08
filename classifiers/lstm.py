@@ -71,6 +71,12 @@ class _LstmGraph():
 
             # Must cast tf.argmax to int32 because it returns int64
             self.labels_predicted = tf.cast(tf.argmax(self.softmax, axis=1), tf.int32)
+            self.accuracy = tf.reduce_mean(
+                tf.cast(
+                    tf.equal(self.labels_predicted, self.labels),
+                    tf.float32
+                )
+            )
 
             # Loss function is mean cross-entropy
             self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
@@ -104,8 +110,7 @@ class LstmClassifier(Classifier):
         console.info("Restored model from", latest_ckpt)
 
     def train(self,
-        raw_inputs,
-        true_labels,
+        data_source,
         num_epochs=None,
         continue_previous=True,
         save_every_n_epochs=5,
@@ -121,8 +126,9 @@ class LstmClassifier(Classifier):
             `save_hook` if given, a callable that will be called with parameters
                 (epoch number, step number) whenever a new checkpoint is saved
         """
-        char_inputs = lstm_util.encode_raw_inputs(raw_inputs)
-        train_data = lstm_util.make_batch(char_inputs, true_labels)
+        ds = data_source
+        char_inputs = lstm_util.encode_raw_inputs(ds.train_raw_inputs)
+        train_data = lstm_util.make_batch(char_inputs, ds.train_labels)
 
         train_feed = {
             self._g.use_dropout:  True,
@@ -130,6 +136,18 @@ class LstmClassifier(Classifier):
             self._g.inputs:       None,
             self._g.labels:       None,
             self._g.true_lengths: None
+        }
+
+
+        eval_inputs = lstm_util.encode_raw_inputs(ds.test_raw_inputs)
+        eval_data = lstm_util.make_batch(eval_inputs, ds.test_labels)
+
+        eval_feed = {
+            self._g.use_dropout:  False,
+            self._g.batch_size:   len(eval_inputs),
+            self._g.inputs:       eval_data.xs,
+            self._g.labels:       eval_data.ys,
+            self._g.true_lengths: eval_data.lengths
         }
 
         epochs_done = 0
@@ -161,6 +179,9 @@ class LstmClassifier(Classifier):
                 if minibatcher.is_new_epoch:
                     console.info("\tAverage loss (last {} steps): {:.4f}".format(len(losses), np.mean(losses)))
                     epochs_done += 1
+                    acc = sess.run(self._g.accuracy, eval_feed)
+                    console.log("Eval accuracy: {:.3f}".format(acc))
+                    """
                     if epochs_done % save_every_n_epochs == 0:
                         saved_path = self._g.saver.save(sess, "./ckpts/lstm", global_step=self._g.step)
                         console.log(
@@ -168,6 +189,7 @@ class LstmClassifier(Classifier):
                             + "{}\tCheckpoint saved to {}".format(datetime.now(), saved_path)
                             + console.colors.END)
                         save_hook(epochs_done, step)
+                    """
                 else:
                     # Print some stuff so we know it's making progress
                     label = "Global Step {}".format(step)
