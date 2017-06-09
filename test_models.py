@@ -52,12 +52,40 @@ def print_metrics(truth, predictions, mfc_class):
         console.h1("\t\tF1:\t{:.4f}".format(f1))
 
 
+def print_confusion_matrix(truth, preds):
+    assert len(truth) == len(preds)
+    n_classes = max(truth)
+    matrix = np.zeros([n_classes, n_classes], np.int)
+
+    order = {
+        Emotion.JOY: 0,
+        Emotion.ANGER: 1,
+        Emotion.SADNESS: 2
+    }
+
+    for y, y_hat in zip(truth, preds):
+        matrix[order[Emotion(y)], order[Emotion(y_hat)]] += 1
+    
+    print("Confusion matrix:")
+
+    hdr = sorted(order.keys(), key=order.get)
+    hdr = map(lambda em: em.name, hdr)
+
+    print(" ".join(hdr))
+
+    for i in range(3):
+        print(" & ".join(str(n) for n in matrix[i]), r"\\")
+
 def assess_classifier(classifier, data_src):
     mfc_class = np.bincount(data_src.train_labels).argmax()
+    labels_predicted = classifier.predict(data_src.test_raw_inputs)
+
     print_metrics(
         data_src.test_labels,
-        classifier.predict(data_src.test_inputs),
+        labels_predicted,
         mfc_class)
+
+    print_confusion_matrix(data_src.test_labels, labels_predicted)
 
 
 if __name__ == "__main__":
@@ -67,12 +95,11 @@ if __name__ == "__main__":
     unigram = UnigramClassifier()
     unigram.train(tweets, max_epochs=1000)
     assess_classifier(unigram, tweets)
-    
+
     console.h1("EmoLexBowClassifier")
     emolex = EmoLexBowClassifier()
     emolex.train(tweets)
     assess_classifier(emolex, tweets)
 
-    console.h1("Big LSTM thingy")
+    console.h1("Attentive Bi-LSTM")
     lstm = CustomVocabClassifier("try1")
-    assess_classifier(lstm, tweets)

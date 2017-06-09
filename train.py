@@ -13,6 +13,7 @@ parser.add_argument("--eval_interval", type=int, nargs="?", default=None, help="
 parser.add_argument("--progress_interval", type=float, nargs="?", default=0.01, help="Progress bar interval (percent)")
 parser.add_argument("--num_epochs", type=int, nargs="?", default=None, help="Number of epochs")
 parser.add_argument("--tokenizer", type=str, required=False, help="Tokenize function")
+parser.add_argument("--logits_mode", type=str, required=False, default="attn", help="Logits mode")
 args = parser.parse_args()
 
 if args.save_interval is not None:
@@ -34,13 +35,12 @@ hparams.batch_size = 200
 hparams.vocab_size = 50000 
 console.info("HParams:\n", hparams)
 
-
 if args.glove:
     console.info("Using GloVe vocabulary...")
     training = GloveTraining(args.name, hparams)
 else:
     console.info("Using custom vocabulary...")
-    training = CustomVocabTraining(args.name, hparams)
+    training = CustomVocabTraining(args.name, hparams, logits_mode=args.logits_mode)
 
 # Load data source
 data_src = TweetsDataSource(file_glob="data/tweets.v3.part*.txt",
@@ -58,6 +58,7 @@ run_name = args.name
 del args.name
 del args.glove
 del args.tokenizer
+del args.logits_mode
 
 def log_hparams():
     with open("log/runs.txt", "a") as logf:
@@ -67,8 +68,8 @@ def log_hparams():
 try:
     training.run(data_src, **vars(args))
     log_hparams()
-except Exception as e:
-    console.warn(e)
+except (Exception, KeyboardInterrupt) as e:
+    console.warn(e, e.args)
     console.log("\nTraining interrupted. Save this session (y/n)? ")
     if input().startswith("y"):
         log_hparams()

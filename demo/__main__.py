@@ -38,9 +38,15 @@ def audio(f):
     console.debug("response",dir(response))
     return response
 
+latex_colors = {
+    Emotion.JOY: "green",
+    Emotion.ANGER: "red",
+    Emotion.SADNESS: "blue"
+}
+
 @app.route("/classify/<text>")
 def classify(text):
-    console.log("text is ", text)
+    console.log("text is", text)
     tokens, classifications, attention = lstm.predict_soft_with_attention([text])[0]
     console.log("tokens are", tokens, "attention is", attention)
     console.debug("classifications:", classifications)
@@ -54,7 +60,13 @@ def classify(text):
         "attention" : attention,
         "audio_path" : url_for('static', filename=os.path.relpath(output_path, "demo/static/"))
     }
-    console.debug("output is ", output)
+    console.debug("output is", output)
+
+    latex = ""
+    for tok, att in zip(tokens, attention):
+        latex += "\\hlc[{}!{:.0f}]{{{}}} ".format(latex_colors[maxEmotion], round(att * 100), tok)
+    console.debug("latex is", latex)
+    
     return json.dumps(output)
 
 console.h1("Server Ready")

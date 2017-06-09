@@ -2,6 +2,7 @@ from collections import defaultdict, deque
 from utility import console, Emotion
 from .classifier import Classifier
 from .utility import Batch, Minibatcher
+from data_source.tokenize import tokenize_tweet
 import numpy as np
 import tensorflow as tf
 
@@ -84,7 +85,7 @@ class EmoLexBowClassifier(Classifier):
 
 
     def train(self, data_source):
-        input_tokens = data_source.train_inputs
+        input_tokens = np.array([tokenize_tweet(sent) for sent in data_source.train_raw_inputs])
         labels = data_source.train_labels
         train_data = Batch(xs=self._encode_inputs(input_tokens), ys=np.array(labels), lengths=None)
         minibatcher = Minibatcher(train_data)
@@ -102,11 +103,12 @@ class EmoLexBowClassifier(Classifier):
             self._b_save = sess.run(self._g.b)
 
 
-    def predict(self, input_tokens):
-        return np.argmax(self.predict_soft(input_tokens), axis=1)
+    def predict(self, sentences):
+        return np.argmax(self.predict_soft(sentences), axis=1)
 
 
-    def predict_soft(self, input_tokens):
+    def predict_soft(self, sentences):
+        input_tokens = np.array([tokenize_tweet(sent) for sent in sentences])
         feed = {
             self._g.w: self._w_save,
             self._g.b: self._b_save,

@@ -20,10 +20,8 @@ from .classifier import Classifier
 
 class _CustomVocabGraph():
 
-    NUM_LABELS = len(Emotion)
-
-    def __init__(self, hparams, init_embeddings=None):
-        console.info("Building TF graph")
+    def __init__(self, hparams, init_embeddings=None, logits_mode="attn"):
+        console.info("Building TF graph, logits_mode =", logits_mode)
 
         hp = hparams
         self.root = tf.Graph()
@@ -59,7 +57,7 @@ class _CustomVocabGraph():
                     tf.contrib.rnn.LSTMCell(size, state_is_tuple=True),
                     input_keep_prob=self.keep_prob_in,
                     output_keep_prob=self.keep_prob_out,
-                    seed=4)
+                    seed=5)
             
             # Bi-LSTM here
             self.cell_fw = make_cell(hp.hidden_size)
@@ -96,45 +94,61 @@ class _CustomVocabGraph():
             # self.e = self.e / tf.norm(o, axis=1, keep_dims=True)
 
             scores = tf.where(mask, self.e, tf.ones_like(self.e) * -1E8)
-
             self.a = tf.nn.softmax(scores)
+            
             self.x = tf.reduce_sum(tf.multiply(self.a[:, :, tf.newaxis], attn_target), axis=1)
+            self.x /= tf.norm(self.x, axis=1, keep_dims=True) # Normalize
 
-            self.x = self.x / tf.norm(self.x, axis=1, keep_dims=True)
-
-            self.w = tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS), name="dense_weights")
-            self.b = tf.Variable(tf.zeros(self.NUM_LABELS), name="dense_biases")
-
-            # Use these logits to enable attention:
-            self.logits_a = tf.nn.xw_plus_b(self.x, self.w, self.b)
-            
-            # Use these logits to bypass attention:
-            self.logits_b = tf.nn.xw_plus_b(self.concat_final_states,
-                tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
-                tf.Variable(tf.zeros(self.NUM_LABELS)))
-            
-            # Direct sum of attention and non-attention vectors
-            self.logits_c = tf.nn.xw_plus_b(self.concat_final_states + self.x,
-                tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
-                tf.Variable(tf.zeros(self.NUM_LABELS)))
-
-            # Weighted sum of attention and non-attention vectors
-            weighted = lambda t: t * tf.Variable(tf.random_uniform([hp.hidden_size*2]))
-            self.logits_d = tf.nn.xw_plus_b(
-                weighted(self.concat_final_states) + weighted(self.x),
-                tf.Variable(util.xavier(hp.hidden_size*2, self.NUM_LABELS)),
-                tf.Variable(tf.zeros(self.NUM_LABELS)))
-
-            # Attention with extra hidden layer
-            self.logits_e = tf.nn.xw_plus_b(
-                tf.nn.xw_plus_b(
+            logits_modes = {
+                # a) Enable attention
+                "attn": lambda: tf.nn.xw_plus_b(
                     self.x,
-                    tf.Variable(util.xavier(hp.hidden_size*2, 64)),
-                    tf.Variable(tf.zeros(64))),
-                tf.Variable(util.xavier(64, self.NUM_LABELS)),
-                tf.Variable(tf.zeros(self.NUM_LABELS)))
+                    tf.Variable(util.xavier(hp.hidden_size*2, len(Emotion))),
+                    tf.Variable(tf.zeros(len(Emotion)))
+                ),
+            
+                # b) Bypass attention 
+                "no_attn": lambda: tf.nn.xw_plus_b(
+                    self.concat_final_states,
+                    tf.Variable(util.xavier(hp.hidden_size*2, len(Emotion))),
+                    tf.Variable(tf.zeros(len(Emotion)))
+                ),
+            
+                # c) Direct sum of attention's weighted average + final state
+                "sum_attn_no_attn": lambda: tf.nn.xw_plus_b(
+                    self.concat_final_states + self.x,
+                    tf.Variable(util.xavier(hp.hidden_size*2, len(Emotion))),
+                    tf.Variable(tf.zeros(len(Emotion)))
+                ),
 
-            self.logits = self.logits_a
+                # d) Weighted sum of attention and non-attention vectors
+                "weighted_attn_no_attn": lambda: tf.nn.xw_plus_b(
+                    self.concat_final_states * tf.Variable(tf.random_uniform([hp.hidden_size*2]))
+                        + self.x * tf.Variable(tf.random_uniform([hp.hidden_size*2])),
+                    tf.Variable(util.xavier(hp.hidden_size*2, len(Emotion))),
+                    tf.Variable(tf.zeros(len(Emotion)))
+                ),
+
+                # e) Attention with extra dense layer
+                "attention_extra_dense": lambda: tf.nn.xw_plus_b(
+                    tf.nn.xw_plus_b(
+                        self.x,
+                        tf.Variable(util.xavier(hp.hidden_size*2, 64)),
+                        tf.Variable(tf.zeros(64))
+                    ),
+                    tf.Variable(util.xavier(64, len(Emotion))),
+                    tf.Variable(tf.zeros(len(Emotion)))
+                ),
+
+                # f) Averaged word embeddings into a fully-connected layer
+                "average_embeddings": lambda: tf.nn.xw_plus_b(
+                    tf.reduce_sum(self.inputs_embedded * float_mask, axis=1) / tf.cast(self.true_lengths[:, tf.newaxis], tf.float32),
+                    tf.Variable(util.xavier(200, len(Emotion))),
+                    tf.Variable(tf.zeros(len(Emotion)))
+                )
+            }
+
+            self.logits = logits_modes[logits_mode]() 
             self.softmax = tf.nn.softmax(self.logits)
 
             # Must cast tf.argmax to int32 because it returns int64
@@ -165,7 +179,6 @@ class _CustomVocabGraph():
             tf.add_to_collection("labels", self.labels_predicted) # Predicted labels
             tf.add_to_collection("softmax", self.softmax)
             tf.add_to_collection("attention", self.a) # Attention weights
-
 
 
 class CustomVocabClassifier(Classifier):
@@ -199,13 +212,18 @@ class CustomVocabClassifier(Classifier):
         return [self.index_word[i] if i < self.vocab_size else "[UNK]" for i in ids]
 
 
-    def _make_feed(self, tokens):
-        def lookup(word):
-            return self.word_index.get(word.lower(), self.vocab_size)
+    def _make_feed(self, sentences, is_tokenized=False):
+        def lookup(token):
+            return self.word_index.get(token, self.vocab_size)
 
-        ids = np.zeros(len(tokens), dtype=object)
-        for i, sent in enumerate(tokens):
-            ids[i] = np.fromiter((lookup(w) for w in sent), dtype=np.int, count=len(sent))
+        ids = np.zeros(len(sentences), dtype=object)
+
+        if is_tokenized:
+            for i, sent in enumerate(sentences):
+                ids[i] = np.array([lookup(tok) for tok in sent], dtype=np.int)
+        else:
+            for i, sent in enumerate(sentences):
+                ids[i] = np.array([lookup(tok) for tok in tokenize_tweet(sent)], dtype=np.int)
 
         return {
             self.batch_size:   len(ids),
@@ -214,14 +232,16 @@ class CustomVocabClassifier(Classifier):
         }
 
     
-    def predict(self, tokens):
-        feed = self._make_feed(tokens)
-        return self._sess.run(self.labels, feed)
+    def predict(self, sentences):
+        return np.argmax(self.predict_soft(sentences), axis=1) 
         
 
-    def predict_soft(self, tokens):
-        feed = self._make_feed(tokens)
-        return self._sess.run(self.softmax, feed)
+    def predict_soft(self, sentences):
+        preds = np.zeros([len(sentences), len(Emotion)], np.float32)
+        for i in range(0, len(sentences), 1000):
+            feed = self._make_feed(sentences[i : i + 1000])
+            preds[i : i + 1000] = self._sess.run(self.softmax, feed)
+        return preds
 
     
     def predict_soft_with_attention(self, sentences):
@@ -231,7 +251,7 @@ class CustomVocabClassifier(Classifier):
             tokens.append(t)
             maps.append(m)
 
-        feed = self._make_feed(tokens)
+        feed = self._make_feed(tokens, is_tokenized=True)
         [soft_labels, tok_attns] = self._sess.run([self.softmax, self.attention], feed)
 
         data = []
@@ -250,9 +270,10 @@ class CustomVocabClassifier(Classifier):
 
 class CustomVocabTraining(util.TrainingSession):
 
-    def __init__(self, run_name, hparams):
+    def __init__(self, run_name, hparams, logits_mode="attn"):
         super().__init__("customvocab", run_name)
         self.hparams = hparams
+        self.logits_mode = logits_mode
 
 
     def run(
@@ -300,7 +321,7 @@ class CustomVocabTraining(util.TrainingSession):
         console.info("{}/{} words found in GloVe".format(n_found, self.hparams.vocab_size))
         """
 
-        graph = _CustomVocabGraph(self.hparams, initial_embeddings)
+        graph = _CustomVocabGraph(self.hparams, initial_embeddings, self.logits_mode)
 
         def sent_to_ids(corpus):
             return np.array([
@@ -330,14 +351,36 @@ class CustomVocabTraining(util.TrainingSession):
             next_progress = 0.0    
 
         with tf.Session(graph=graph.root) as sess:
+            tf.set_random_seed(5)
             sess.run(graph.init_op)
 
-            stats = [
-                tf.summary.scalar("accuracy", graph.accuracy),
-                tf.summary.scalar("loss", graph.loss)
-            ]
-            self.merged = tf.summary.merge(stats)
             writer = tf.summary.FileWriter(self.logdir, flush_secs=60)
+
+            def find_eval_accuracy():
+                ns_correct = []
+                total_loss = 0
+                for idx in range(0, len(eval_inputs), 1000):
+                    chunk_input = eval_inputs[idx : idx + 1000]
+                    chunk_labels = eval_labels[idx : idx + 1000]
+                    eval_feed = {
+                        graph.batch_size:   len(chunk_input),
+                        graph.inputs:       util.pad_to_max_len(chunk_input),
+                        graph.labels:       chunk_labels,
+                        graph.true_lengths: util.lengths(chunk_input)
+                    }
+                    [loss_i, preds_i] = sess.run([graph.loss, graph.labels_predicted], eval_feed)
+                    
+                    ns_correct.append(np.equal(preds_i, chunk_labels).sum())
+                    total_loss += loss_i
+
+                accuracy = sum(ns_correct) / len(eval_inputs)
+
+                if minibatcher.is_new_epoch:
+                    console.log("Eval accuracy: {:.5f}".format(accuracy))
+
+                summary = tf.Summary()
+                summary.value.add(tag="Accuracy", simple_value=accuracy)
+                writer.add_summary(summary, step)
 
             while True:
                 if num_epochs is not None and minibatcher.cur_epoch > num_epochs:
@@ -353,33 +396,12 @@ class CustomVocabTraining(util.TrainingSession):
 
                 # Log validation accuracy to Tensorboard file
                 # Calculate test accuracy in chunks of 1000 to prevent GPU OOM.
-                if step > 0 and step % 100 == 0:
-                    ns_correct = []
-                    total_loss = 0
-                    for idx in range(0, len(eval_inputs), 1000):
-                        chunk_input = eval_inputs[idx : idx + 1000]
-                        chunk_labels = eval_labels[idx : idx + 1000]
-                        eval_feed = {
-                            graph.batch_size:   len(chunk_input),
-                            graph.inputs:       util.pad_to_max_len(chunk_input),
-                            graph.labels:       chunk_labels,
-                            graph.true_lengths: util.lengths(chunk_input)
-                        }
-                        [loss_i, preds_i] = sess.run([graph.loss, graph.labels_predicted], eval_feed)
-                        
-                        ns_correct.append(np.equal(preds_i, chunk_labels).sum())
-                        total_loss += loss_i
-
-                    accuracy = sum(ns_correct) / len(eval_inputs)
-                    console.log("Eval accuracy: {:.5f}".format(accuracy))
-
-                    summary = tf.Summary()
-                    summary.value.add(tag="Accuracy", simple_value=accuracy)
-                    writer.add_summary(summary, step)
+                if eval_interval is not None and step > 0 and step % eval_interval == 0:
+                    find_eval_accuracy()
 
                 # At end of each epoch, maybe save and report some metrics
                 if minibatcher.is_new_epoch:
-                    console.info("")
+                    find_eval_accuracy()
 
                     if progress_interval is not None:
                         next_progress = 0.0    

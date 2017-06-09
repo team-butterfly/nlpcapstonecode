@@ -4,17 +4,17 @@ from utility.strings import StringStore
 from .classifier import Classifier
 from .utility import Batch
 
+from data_source.tokenize import tokenize_tweet
+
 import numpy as np
 
-# Disable tensorflow warning/debugging log messages.
-from os import environ; environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import tensorflow as tf
 
 class UnigramClassifier(Classifier):
     """
     ``UnigramClassifier` classifies sentences by a simple bag-of-words model.
     """
-    def __init__(self, vocab_size=20000):
+    def __init__(self, vocab_size=50000):
         """
         Args:
             `vocab_size` a hard limit on vocabulary size
@@ -26,7 +26,7 @@ class UnigramClassifier(Classifier):
         """Convert a list of token sequences into a matrix of unigram counts."""
         out = np.empty([len(sentences), len(self._stringstore)], dtype=np.float32)
         for i, sent in enumerate(sentences):
-            out[i] = self._stringstore.count_vector(sent)
+            out[i] = self._stringstore.count_vector(tokenize_tweet(sent))
         return out
 
     def train(self, data_source, max_epochs=1000):
@@ -38,11 +38,10 @@ class UnigramClassifier(Classifier):
             raise ValueError("UnigramClassifier max_epochs cannot be None")
 
         # First, set up the vocabulary and such
-        sentences = data_source.train_inputs
-        self._stringstore = StringStore(sentences, self._vocab_size)
-        self._vocab_size = len(self._stringstore)
+        sentences = data_source.train_raw_inputs
+        self._stringstore = StringStore(map(tokenize_tweet, sentences), self._vocab_size)
 
-        console.log("UnigramClassifier.train: vocabulary size is", self._vocab_size)
+        console.log("UnigramClassifier.train: vocabulary size is", len(self._stringstore))
 
         # Set up minibatching
         encoded_inputs = self._encode_sentences(sentences)
@@ -93,7 +92,7 @@ class UnigramClassifier(Classifier):
                     self._inputs:      batch.xs,
                     self._true_labels: batch.ys
                 }
-                sess.run([self._train_op], train_feed)
+                sess.run(self._train_op, train_feed)
 
             self._w_saved = self._w.eval()
             self._b_saved = self._b.eval()
@@ -101,7 +100,6 @@ class UnigramClassifier(Classifier):
     def predict(self, sentences):
         with tf.Session(graph=self._graph) as sess:
             sess.run(self._init_op)
-            console.info("Begin predict session")
             feed = {
                 self._inputs: self._encode_sentences(sentences),
                 self._w: self._w_saved,
