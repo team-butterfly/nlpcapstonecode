@@ -103,3 +103,4 @@ if __name__ == "__main__":
 
     console.h1("Attentive Bi-LSTM")
     lstm = CustomVocabClassifier("try1")
+    assess_classifier(lstm, tweets)
